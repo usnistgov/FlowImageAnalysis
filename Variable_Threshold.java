@@ -49,6 +49,8 @@ public class Variable_Threshold implements PlugIn {
         ImagePlus impR = IJ.getImage();
         int framew = impR.getWidth();
         int frameh = impR.getHeight();
+                    int measurements = 0;
+                    String MeasCommand="";
         boolean EnhanceContrastCollage = false;
 //        ImageStatistics stats = imp.getStatistics();
         String RawStack = impR.getTitle();
@@ -129,6 +131,8 @@ public class Variable_Threshold implements PlugIn {
             }
             IJ.run("Clear Results", "");
             rm.runCommand("Open", fname);
+                   MeasCommand=DefineMeasurements(measurements); 
+                           IJ.run("Set Measurements...", MeasCommand + " redirect=" + RawStack + " decimal=3");
             rm.runCommand("Measure");
             rt = ResultsTable.getResultsTable();
         } else {
@@ -145,10 +149,9 @@ public class Variable_Threshold implements PlugIn {
             int StackSize = imp.getNSlices() * imp.getNFrames();
             System.out.println("Nslices" + StackSize);
             ImagePlus impc = IJ.createImage("Collage", "8-bit black", impR.getWidth(), impR.getHeight(), StackSize);
-            String MeasCommand = "";
             rmA.runCommand("reset");
             IJ.run("Colors...", "foreground=white background=black selection=blue");
-            int measurements = 0;
+
             int j;
             int k;
             int border = 5;
@@ -231,85 +234,7 @@ public class Variable_Threshold implements PlugIn {
             ImagePlus impf = IJ.createImage("FusedMask", "8-bit black", framew, frameh, StackSize);
 
             if (SaveResults) {
-                GenericDialog gdResults = new GenericDialog("Set Measurements", IJ.getInstance());
-                String[] labels = new String[18];
-                String[] Measure = new String[18];
-                boolean[] states = new boolean[18];
-                labels[0] = "Area";
-                states[0] = (systemMeasurements & AREA) != 0;
-                Measure[0] = "area";
-                labels[1] = "Mean gray value";
-                states[1] = (systemMeasurements & MEAN) != 0;
-                Measure[1] = "mean";
-                labels[2] = "Standard deviation";
-                states[2] = (systemMeasurements & STD_DEV) != 0;
-                Measure[2] = "standard";
-                labels[3] = "Modal gray value";
-                states[3] = (systemMeasurements & MODE) != 0;
-                Measure[3] = "modal";
-                labels[4] = "Min & max gray value";
-                states[4] = (systemMeasurements & MIN_MAX) != 0;
-                Measure[4] = "min";
-                labels[5] = "Centroid";
-                states[5] = (systemMeasurements & CENTROID) != 0;
-                Measure[5] = "centroid";
-                labels[6] = "Center of mass";
-                states[6] = (systemMeasurements & CENTER_OF_MASS) != 0;
-                Measure[6] = "center";
-                labels[7] = "Perimeter";
-                states[7] = (systemMeasurements & PERIMETER) != 0;
-                Measure[7] = "perimeter";
-                labels[8] = "Bounding rectangle";
-                states[8] = (systemMeasurements & RECT) != 0;
-                Measure[8] = "bounding";
-                labels[9] = "Fit ellipse";
-                states[9] = (systemMeasurements & ELLIPSE) != 0;
-                Measure[9] = "fit";
-                labels[10] = "Shape descriptors";
-                states[10] = (systemMeasurements & SHAPE_DESCRIPTORS) != 0;
-                Measure[10] = "shape";
-                labels[11] = "Feret's diameter";
-                states[11] = (systemMeasurements & FERET) != 0;
-                Measure[11] = "feret's";
-                labels[12] = "Integrated density";
-                states[12] = (systemMeasurements & INTEGRATED_DENSITY) != 0;
-                Measure[12] = "integrated";
-                labels[13] = "Median";
-                states[13] = (systemMeasurements & MEDIAN) != 0;
-                Measure[13] = "median";
-                labels[14] = "Skewness";
-                states[14] = (systemMeasurements & SKEWNESS) != 0;
-                Measure[14] = "skewness";
-                labels[15] = "Kurtosis";
-                states[15] = (systemMeasurements & KURTOSIS) != 0;
-                Measure[15] = "kurtosis";
-                labels[16] = "Area_fraction";
-                states[16] = (systemMeasurements & AREA_FRACTION) != 0;
-                Measure[16] = "area_fraction";
-                labels[17] = "Stack position";
-                states[17] = (systemMeasurements & STACK_POSITION) != 0;
-                Measure[17] = "stack";
-                gdResults.setInsets(0, 0, 0);
-                gdResults.addCheckboxGroup(9, 2, labels, states);
-                gdResults.showDialog();
-                if (gdResults.wasCanceled()) {
-                    return;
-                }
-                int oldMeasurements = systemMeasurements;
-                int previous = 0;
-                boolean b = false;
-                for (i = 0; i < list.length; i++) {
-                    //if (list[i]!=previous)
-                    b = gdResults.getNextBoolean();
-                    previous = list[i];
-                    if (b) {
-                        measurements |= list[i];
-                        MeasCommand = MeasCommand + Measure[i] + " ";
-                    } else {
-                        measurements &= ~list[i];
-                    }
-                }
-
+               MeasCommand=DefineMeasurements(measurements); 
             }       
             IJ.log("MaxGray2ThreshFactor " + Float.toString(MaxGray2ThreshFactor));
             IJ.log("ThreshStart " + Integer.toString(ThreshStart));
@@ -669,11 +594,94 @@ if (SaveResults&&runtype!=1) {
     public static void setMeasurements(int measurements) {
         systemMeasurements = measurements;
     }
+    public static String DefineMeasurements(int measurements) {
+        int i;
+        String MeasCommand="";
+GenericDialog gdResults = new GenericDialog("Set Measurements", IJ.getInstance());
+                String[] labels = new String[18];
+                String[] Measure = new String[18];
+                boolean[] states = new boolean[18];
+                labels[0] = "Area";
+                states[0] = (systemMeasurements & AREA) != 0;
+                Measure[0] = "area";
+                labels[1] = "Mean gray value";
+                states[1] = (systemMeasurements & MEAN) != 0;
+                Measure[1] = "mean";
+                labels[2] = "Standard deviation";
+                states[2] = (systemMeasurements & STD_DEV) != 0;
+                Measure[2] = "standard";
+                labels[3] = "Modal gray value";
+                states[3] = (systemMeasurements & MODE) != 0;
+                Measure[3] = "modal";
+                labels[4] = "Min & max gray value";
+                states[4] = (systemMeasurements & MIN_MAX) != 0;
+                Measure[4] = "min";
+                labels[5] = "Centroid";
+                states[5] = (systemMeasurements & CENTROID) != 0;
+                Measure[5] = "centroid";
+                labels[6] = "Center of mass";
+                states[6] = (systemMeasurements & CENTER_OF_MASS) != 0;
+                Measure[6] = "center";
+                labels[7] = "Perimeter";
+                states[7] = (systemMeasurements & PERIMETER) != 0;
+                Measure[7] = "perimeter";
+                labels[8] = "Bounding rectangle";
+                states[8] = (systemMeasurements & RECT) != 0;
+                Measure[8] = "bounding";
+                labels[9] = "Fit ellipse";
+                states[9] = (systemMeasurements & ELLIPSE) != 0;
+                Measure[9] = "fit";
+                labels[10] = "Shape descriptors";
+                states[10] = (systemMeasurements & SHAPE_DESCRIPTORS) != 0;
+                Measure[10] = "shape";
+                labels[11] = "Feret's diameter";
+                states[11] = (systemMeasurements & FERET) != 0;
+                Measure[11] = "feret's";
+                labels[12] = "Integrated density";
+                states[12] = (systemMeasurements & INTEGRATED_DENSITY) != 0;
+                Measure[12] = "integrated";
+                labels[13] = "Median";
+                states[13] = (systemMeasurements & MEDIAN) != 0;
+                Measure[13] = "median";
+                labels[14] = "Skewness";
+                states[14] = (systemMeasurements & SKEWNESS) != 0;
+                Measure[14] = "skewness";
+                labels[15] = "Kurtosis";
+                states[15] = (systemMeasurements & KURTOSIS) != 0;
+                Measure[15] = "kurtosis";
+                labels[16] = "Area_fraction";
+                states[16] = (systemMeasurements & AREA_FRACTION) != 0;
+                Measure[16] = "area_fraction";
+                labels[17] = "Stack position";
+                states[17] = (systemMeasurements & STACK_POSITION) != 0;
+                Measure[17] = "stack";
+                gdResults.setInsets(0, 0, 0);
+                gdResults.addCheckboxGroup(9, 2, labels, states);
+                gdResults.showDialog();
+                if (gdResults.wasCanceled()) {
+                    return "";
+                }
+                int oldMeasurements = systemMeasurements;
+                int previous = 0;
+                boolean b = false;
+                for (i = 0; i < list.length; i++) {
+                    //if (list[i]!=previous)
+                    b = gdResults.getNextBoolean();
+                    previous = list[i];
+                    if (b) {
+                        measurements |= list[i];
+                        MeasCommand = MeasCommand + Measure[i] + " ";
+                    } else {
+                        measurements &= ~list[i];
+                    }
+                }
 
+        return MeasCommand;
+    }
     public static ImagePlus Remove_Background(ImagePlus imp) {
         int MedianStartSlice = 1;
         int MedianEndSlice = 40;
-        double ScaleFactorLightPix = 1.0;
+        double ScaleFactorLightPix = 0.0;
         String ScaleFactorLightPixSt = Double.toString(ScaleFactorLightPix);
         ImageCalculator ic = new ImageCalculator();
         MedianEndSlice = Math.min(MedianEndSlice, imp.getNSlices());
@@ -718,6 +726,7 @@ if (SaveResults&&runtype!=1) {
         int xs;
         int ys;
         int z;
+        boolean newpage=false;
         int labeloffsety = 5;
         int labeloffsetx = 7;
         Roi roiA;
@@ -757,6 +766,7 @@ if (SaveResults&&runtype!=1) {
                 ypmax = yp + h + ygap + 2 * border;
             }
             if (yp + h + ygap + 2 * border > frameh) {
+                newpage=true;
                 slices++;
                 IJ.run(impm, "Create Selection", "");
                 Roi roi1 = impm.getRoi();
@@ -817,6 +827,11 @@ if (SaveResults&&runtype!=1) {
             IJ.run(impw, "Paste", "");
             xp = xp + w + xgap;
             roi.setLocation(xs, ys);
+            if (newpage) {                
+                roi.setPosition(z);
+                newpage=false;}
+            
+            
         }
         slices++;
         IJ.run(impm, "Create Selection", "");
