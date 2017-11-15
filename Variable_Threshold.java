@@ -1,5 +1,5 @@
 package Variable_Threshold;
-
+import java.util.Arrays;
 import ij.*;
 import ij.process.*;
 import ij.gui.*;
@@ -49,7 +49,7 @@ public class Variable_Threshold implements PlugIn {
         ImagePlus impR = IJ.getImage();
         int framew = impR.getWidth();
         int frameh = impR.getHeight();
-                    int measurements = 0;
+                    int measurements = systemMeasurements;
                     String MeasCommand="";
         boolean EnhanceContrastCollage = false;
 //        ImageStatistics stats = imp.getStatistics();
@@ -66,7 +66,7 @@ public class Variable_Threshold implements PlugIn {
         int index = RawStack.lastIndexOf('.');
         int i;
         boolean LabelCollageParticles = true;
-        boolean ShowParticlesInImageStack=false;
+        boolean ShowParticlesInImageStack=true;
         int labelinterval = 5;
         if (index != -1) {
             name = RawStack.substring(0, index);
@@ -98,6 +98,7 @@ public class Variable_Threshold implements PlugIn {
         IJ.log("Run Type " + Runoption[runtype]);
                 GenericDialog DoFilter = new GenericDialog("Do Filter?");
         boolean morefilter = true;
+//int runtype=0;
         if (runtype == 1) {
             GenericDialog gdB = new GenericDialog("Filter previous VT-processed Image Stack");
             gdB.addCheckbox("Save Results ", SaveResults);
@@ -110,9 +111,9 @@ public class Variable_Threshold implements PlugIn {
             if (gdB.wasCanceled()) {
                 return;
             }
-            SaveResults = (boolean) gdB.getNextBoolean();
-            LabelCollageParticles = (boolean) gdB.getNextBoolean();
-            EnhanceContrastCollage  = (boolean) gdB.getNextBoolean();
+            SaveResults = gdB.getNextBoolean();
+            LabelCollageParticles = gdB.getNextBoolean();
+            EnhanceContrastCollage  = gdB.getNextBoolean();
             labelinterval = (int) gdB.getNextNumber();
                         RoiManager rm = RoiManager.getInstance();
         if (rm == null) {
@@ -166,8 +167,10 @@ public class Variable_Threshold implements PlugIn {
             int FinalDilateErodeSteps = 0;
             int InitialDilateErodeSteps = 1;
             int ThreshStart = 8;
+//            int ThreshStart = 8;
             int ThreshDelta = 0;
             int nThresholds = 20;
+ //           int nThresholds = 20;
             float MaxGray2ThreshFactor = (float) 0.5;
             String MaxGray2ThreshFactors = Float.toString(MaxGray2ThreshFactor);
             float ThreshReset;
@@ -274,14 +277,23 @@ public class Variable_Threshold implements PlugIn {
             IJ.run(imp2, "Draw", "stack");
             IJ.run("Colors...", "foreground=white background=black selection=blue");
             IJ.run("Set Measurements...", "area min center  stack redirect=" + StartStack + " decimal=3");
-            if ((nThresholds == 1) & (!DoHull)) {
+            if (nThresholds == 1) /*& (!DoHull)) */{
                 IJ.run("Set Measurements...", MeasCommand + " redirect=" + RawStack + " decimal=3");
+                DoHull=false;
             }
-             ParticleAnalyzer.setRoiManager(rmA);
+
+//             ParticleAnalyzer.setRoiManager(rmA);
+             if (nThresholds > 1){
+             ParticleAnalyzer.setRoiManager(rmA);}
+
             IJ.run(imp2, "Analyze Particles...", "size=" + Minsizes + "-" + Maxsizes +/*Infinity"+*/ " pixel " + " circularity=" + MinCircs + "-" + MaxCircs + " display exclude clear add stack");
             String fDataSt;
+            if (nThresholds == 1) 
+            {rmA = RoiManager.getInstance();
+             }            
             nROIs = rmA.getCount();
             IJ.log("Initial #nROIs " + Integer.toString(nROIs));
+
             float[] MaxGrayArray = new float[nROIs];
             int[] MaxGrayArrayIndex = new int[nROIs];
             int[] Bx1 = new int[nROIs];
@@ -290,8 +302,12 @@ public class Variable_Threshold implements PlugIn {
             int[] Bh1 = new int[nROIs];
             int[] Bz1 = new int[nROIs];
             rt = ResultsTable.getResultsTable();
+            if (nThresholds > 1) {
             MaxGrayArray = rt.getColumn(5);
-            float MaxGraymax = MaxGrayArray[0];
+  //          IJ.log("got here " );
+            float MaxGraymax; 
+            MaxGraymax = MaxGrayArray[0];
+  //          IJ.log("got here 2" );
             float MaxGraymin = 1000;
             float MaxGrayupper = 150;
             Roi roi2;
@@ -316,8 +332,9 @@ public class Variable_Threshold implements PlugIn {
             }
             IJ.log("MaxGraymax " + Float.toString(MaxGraymax));
             IJ.log("MaxGraymin " + Float.toString(MaxGraymin));
-            if (nThresholds > 1) {
-                float deltaMaxGray = (MaxGrayupper - MaxGraymin) / ((float) nThresholds) + (float) 0.01;
+
+
+                float deltaMaxGray = (MaxGrayupper - MaxGraymin) / nThresholds + (float) 0.01;
                 int jsum = 0;
                 for (k = 0; k < nThresholds; k++) {
                     IJ.log("working on kth threshold " + Integer.toString(k));
@@ -403,7 +420,7 @@ public class Variable_Threshold implements PlugIn {
                     fragcount = 0;
                     jloop:
                     for (j = jmin; j <= nROIs2 - 1; j++) {
-                        if (Bx2[j] >= Bx1[i] && By2[j] >= By1[i] && ((int) Bz2[j] == (int) Bz1[i])) {
+                        if (Bx2[j] >= Bx1[i] && By2[j] >= By1[i] && (Bz2[j] == Bz1[i])) {
                             if (Bx2[j] <= Bx1[i] + Bw1[i] && By2[j] <= By1[i] + Bh1[i]) {
                                 //inside the ith box of original ROI
                                 if (fragcount == 0) {
@@ -427,7 +444,7 @@ public class Variable_Threshold implements PlugIn {
                                 }
                             } else //outside the i'th box of original ROI
                             {
-                                if ((Bx2[j] > Bx1[i] + Bw1[i] && By2[j] > By1[i] + Bh1[i]) || ((int) Bz2[j] > (int) Bz1[i])) {
+                                if ((Bx2[j] > Bx1[i] + Bw1[i] && By2[j] > By1[i] + Bh1[i]) || (Bz2[j] > Bz1[i])) {
                                     //outside and beyond in both x,y  or beyond in z the ith box of original ROI    
                                     break jloop;
                                 }
@@ -467,10 +484,16 @@ public class Variable_Threshold implements PlugIn {
             IJ.log("#ROIs after Joining Fragments " + Integer.toString(nROIs3));
 
             int[] SelectArray2 = new int[nROIs3];
+
 // Convex Hull Analysis
             if (nThresholds == 1) {
+/*                rm=rmA;
+                rmA.reset();
+                rmA.close();      */         
                 impf = imp2;
-                nROIs3 = nROIs;
+ /*               nROIs3 = nROIs;
+                nROIs3 = rm.getCount();
+                IJ.log("#ROIs after Joining Fragments " + Integer.toString(nROIs3));*/
             }
             if (DoHull) {
                 String roiname = "";
@@ -492,7 +515,7 @@ public class Variable_Threshold implements PlugIn {
                     oldRois[ii].setName(roiname);                    
                     rm.reset();
                     ithous = ii / 2000;
-                    if ((2000 * (int) ithous) == ii) {
+                    if ((2000 * ithous) == ii) {
                          IJ.showProgress(ii, nROIs3);
                         IJ.showStatus("Hull Loop");
                     }
@@ -516,16 +539,18 @@ public class Variable_Threshold implements PlugIn {
                 impf = ic.run("And create stack", imp2, impf);
                 IJ.run(impf, "Invert", "stack");
                 IJ.run(impf, "Invert LUT", "");
-                setMeasurements(measurements);
+
                 rt.update(measurements, impf, null);
                 IJ.run("Set Measurements...", MeasCommand + " redirect=" + RawStack + " decimal=3");
                 IJ.run(impf, "Analyze Particles...", "size=" + "1" + "-Infinity pixel circularity=" + "0.0" + "-1.00 display exclude clear add stack");
                 nROIs3 = rm.getCount();
                 IJ.log("#ROIs after Convex Hull " + Integer.toString(nROIs3));
             }
+
             //******
             imp.close();
             imp2.close();
+
             if (DoHull) {
                 IJ.run(impf, "Invert", "stack");
             }
@@ -533,6 +558,7 @@ public class Variable_Threshold implements PlugIn {
   if (ShowParticlesInImageStack) {
       IJ.run(impt, "Properties...", "channels=1 slices=1 frames="+StackSize+" unit=pixel pixel_width=1.0000 pixel_height=1.0000 voxel_depth=1.0000 frame=[1 sec]");
       impt.show();
+//                      IJ.saveAs(impt, "Tiff", path+name  + "C.tif");
   }
 //Save Results Table as xls file 
             if (SaveResults) {
@@ -551,6 +577,7 @@ public class Variable_Threshold implements PlugIn {
             for (i = 0; i <= nROIs3 - 1; i++) {
                 RoiIndexArray[i] = i;
             }
+
             impc = Make_Collage(impr2, RoiIndexArray, LabelCollageParticles, labelinterval);
 
             if (SaveResults) {
@@ -575,6 +602,7 @@ public class Variable_Threshold implements PlugIn {
             morefilter = !(DoFilter2.wasCanceled());
         }
                     impr2.close();
+
 if (SaveResults&&runtype!=1) {
                            String roiname;
          RoiManager rmB = RoiManager.getInstance();
@@ -588,16 +616,19 @@ if (SaveResults&&runtype!=1) {
                               } catch (IOException ex) {
                     Logger.getLogger(Variable_Threshold.class.getName()).log(Level.SEVERE, null, ex);
                 }
-            }        
+            }  
+//IJ.run(impR, "Close All", "");
+IJ.run("Set Measurements...", MeasCommand + " redirect=" + RawStack + " decimal=3");
+Prefs.savePreferences();
     }
 
-    public static void setMeasurements(int measurements) {
-        systemMeasurements = measurements;
-    }
+
     public static String DefineMeasurements(int measurements) {
         int i;
         String MeasCommand="";
+
 GenericDialog gdResults = new GenericDialog("Set Measurements", IJ.getInstance());
+
                 String[] labels = new String[18];
                 String[] Measure = new String[18];
                 boolean[] states = new boolean[18];
@@ -660,13 +691,15 @@ GenericDialog gdResults = new GenericDialog("Set Measurements", IJ.getInstance()
                 gdResults.showDialog();
                 if (gdResults.wasCanceled()) {
                     return "";
+
                 }
                 int oldMeasurements = systemMeasurements;
                 int previous = 0;
                 boolean b = false;
                 for (i = 0; i < list.length; i++) {
-                    //if (list[i]!=previous)
-                    b = gdResults.getNextBoolean();
+                    if (list[i]!=previous)
+                      b = gdResults.getNextBoolean();
+ //                     b=states[i];
                     previous = list[i];
                     if (b) {
                         measurements |= list[i];
@@ -675,12 +708,14 @@ GenericDialog gdResults = new GenericDialog("Set Measurements", IJ.getInstance()
                         measurements &= ~list[i];
                     }
                 }
-
+systemMeasurements = measurements;
+Prefs.savePreferences();
         return MeasCommand;
     }
     public static ImagePlus Remove_Background(ImagePlus imp) {
         int MedianStartSlice = 1;
-        int MedianEndSlice = 40;
+//        int MedianEndSlice = 400;
+        int MedianEndSlice = 30;
         double ScaleFactorLightPix = 0.0;
         String ScaleFactorLightPixSt = Double.toString(ScaleFactorLightPix);
         ImageCalculator ic = new ImageCalculator();
@@ -700,6 +735,8 @@ GenericDialog gdResults = new GenericDialog("Set Measurements", IJ.getInstance()
         ZP.setStopSlice(MedianEndSlice);
         ZP.doProjection();
         ImagePlus impm = ZP.getProjection();
+ /*       impm.show();
+        int food=5/0;*/
         ImagePlus impP = ic.run("Subtract create stack", imp, impm);
         ImagePlus impD = ic.run("Difference create stack", imp, impm);
         ImagePlus impN = ic.run("Subtract create stack", impD, impP);
