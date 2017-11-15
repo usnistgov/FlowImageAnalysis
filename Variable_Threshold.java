@@ -304,10 +304,10 @@ public class Variable_Threshold implements PlugIn {
             rt = ResultsTable.getResultsTable();
             if (nThresholds > 1) {
             MaxGrayArray = rt.getColumn(5);
-  //          IJ.log("got here " );
+
             float MaxGraymax; 
             MaxGraymax = MaxGrayArray[0];
-  //          IJ.log("got here 2" );
+
             float MaxGraymin = 1000;
             float MaxGrayupper = 150;
             Roi roi2;
@@ -618,7 +618,7 @@ if (SaveResults&&runtype!=1) {
                 }
             }  
 //IJ.run(impR, "Close All", "");
-IJ.run("Set Measurements...", MeasCommand + " redirect=" + RawStack + " decimal=3");
+
 Prefs.savePreferences();
     }
 
