@@ -1,4 +1,4 @@
-package Variable_ThresholdGitHub;
+package Variable_Threshold16bitImages;
 import java.util.Arrays;
 import ij.*;
 import ij.process.*;
@@ -31,7 +31,7 @@ import ij.io.OpenDialog;
 import static ij.measure.Measurements.*;
 import ij.plugin.filter.ParticleAnalyzer;
 
-public class Variable_ThresholdGitHub implements PlugIn {
+public class Variable_Threshold16bitImages implements PlugIn {
 
     // Order must agree with order of checkboxes in Set Measurements dialog box
     private static final int[] list = {AREA, MEAN, STD_DEV, MODE, MIN_MAX,
@@ -57,6 +57,7 @@ public class Variable_ThresholdGitHub implements PlugIn {
         // Create window with identified ROIs against black background, autocontrast raw image for better visibility       
             IJ.selectWindow(RawStack);
             ImagePlus impr2 = new Duplicator().run(IJ.getImage());
+
         String name = "";
         String runnumber = "";
         IJ.selectWindow(RawStack);
@@ -147,9 +148,10 @@ public class Variable_ThresholdGitHub implements PlugIn {
             IJ.log("max of raw image" + Double.toString(stats.max));
             String StartStack = imp.getTitle();
             imp.show();
+
             int StackSize = imp.getNSlices() * imp.getNFrames();
             System.out.println("Nslices" + StackSize);
-            ImagePlus impc = IJ.createImage("Collage", "8-bit black", impR.getWidth(), impR.getHeight(), StackSize);
+            ImagePlus impc = IJ.createImage("Collage", "16-bit black", impR.getWidth(), impR.getHeight(), StackSize);
             rmA.runCommand("reset");
             IJ.run("Colors...", "foreground=white background=black selection=blue");
 
@@ -166,7 +168,7 @@ public class Variable_ThresholdGitHub implements PlugIn {
             String MaxCircs = Float.toString(MaxCirc);
             int FinalDilateErodeSteps = 0;
             int InitialDilateErodeSteps = 1;
-            int ThreshStart = 8;
+            int ThreshStart = 500;
 //            int ThreshStart = 8;
             int ThreshDelta = 0;
             int nThresholds = 20;
@@ -174,7 +176,7 @@ public class Variable_ThresholdGitHub implements PlugIn {
             float MaxGray2ThreshFactor = (float) 0.5;
             String MaxGray2ThreshFactors = Float.toString(MaxGray2ThreshFactor);
             float ThreshReset;
-            float ThreshResetMax = 50;
+            float ThreshResetMax = 35000;
             String ThreshResetMaxs = Float.toString(ThreshResetMax);
             boolean DoHull = true;
             boolean areaboolean = true;
@@ -250,7 +252,7 @@ public class Variable_ThresholdGitHub implements PlugIn {
             IJ.log("HullAnalysis " + Boolean.toString(DoHull));
             rmA.runCommand("reset");
             ImagePlus imp2 = new Duplicator().run(imp);
-            IJ.setThreshold(imp2, ThreshStart, 255);
+            IJ.setThreshold(imp2, ThreshStart, 65535);
             Prefs.blackBackground = false;
             IJ.run(imp2, "Make Binary", "method=Default background=Default");
             for (i = 0; i < InitialDilateErodeSteps; i++) {
@@ -333,7 +335,7 @@ public class Variable_ThresholdGitHub implements PlugIn {
             IJ.log("MaxGraymin " + Float.toString(MaxGraymin));
 
 
-                float deltaMaxGray = (MaxGrayupper - MaxGraymin) / nThresholds + (float) 0.01;
+                float deltaMaxGray = (MaxGraymax - MaxGraymin) / nThresholds + (float) 0.01;
                 int jsum = 0;
                 for (k = 0; k < nThresholds; k++) {
                     IJ.log("working on kth threshold " + Integer.toString(k));
@@ -355,11 +357,23 @@ public class Variable_ThresholdGitHub implements PlugIn {
                     if (j > 0) {
 //               Create image of just this batch of ROIs     
                         SelectArray = Arrays.copyOf(MaxGrayArrayIndex, j);
-                        ImagePlus impn = IJ.createImage(ThreshMask, "8-bit black", framew, frameh, StackSize);
+                        ImagePlus impn = IJ.createImage(ThreshMask, "16-bit black", framew, frameh, StackSize);
                         WindowManager.setTempCurrentImage(impn);
                         rmA.setSelectedIndexes(SelectArray);
                         rmA.runCommand("Fill");
+                        double fooq=257;
+                        
+
+                                                   
+//                       	ImageProcessor ipn = impn.getProcessor();
+                        ShortProcessor spn=impn.getProcessor().convertToShortProcessor(false);
+                        spn.multiply(fooq);
+
+  
+
+
                         ImagePlus impt = ic.run("And create stack", imp, impn);
+
                         IJ.log("Number of ROIs in MaxGray Dev Bin " + Integer.toString(j));
                         impn.close();
 //               Set Threshold for this batch of ROIs
@@ -368,7 +382,9 @@ public class Variable_ThresholdGitHub implements PlugIn {
                             ThreshReset = ThreshResetMax;
                         }
                         IJ.log("ThreshReset: " + Float.toString(ThreshReset));
-                        IJ.setThreshold(impt, ThreshReset, 255);
+/*                        impt.show();
+                        float foob=6/0;*/
+                        IJ.setThreshold(impt, ThreshReset, 65535);
                         IJ.run(impt, "Make Binary", "method=Default background=Default");
 //                OR this mask with building-up mask from previous iterations               
                         impf = ic.run("Or create stack", impf, impt);
@@ -520,7 +536,8 @@ public class Variable_ThresholdGitHub implements PlugIn {
                     }
                 }
                 for (ii = 0; ii <= nROIs3 - 1; ii++) {
-                                        rm.add(impf, oldRois[ii],oldRois[ii].getZPosition());
+//                                        rm.add(impf, oldRois[ii],oldRois[ii].getZPosition());
+                                        rm.add(impf, oldRois[ii],-1);
                      }                                           
                 IJ.showProgress(1, 0);
                 IJ.showStatus(" ");
@@ -568,7 +585,7 @@ public class Variable_ThresholdGitHub implements PlugIn {
                     IJ.log("Saved as " + name + runnumber + ".xls");
 
                 } catch (IOException ex) {
-                    Logger.getLogger(Variable_ThresholdGitHub.class.getName()).log(Level.SEVERE, null, ex);
+                    Logger.getLogger(Variable_Threshold16bitImages.class.getName()).log(Level.SEVERE, null, ex);
                 }
 
             }
@@ -613,7 +630,7 @@ if (SaveResults&&runtype!=1) {
                     rmB.runCommand("Deselect");
                     rmB.runCommand("Save", roiname + ".zip");
                               } catch (IOException ex) {
-                    Logger.getLogger(Variable_ThresholdGitHub.class.getName()).log(Level.SEVERE, null, ex);
+                    Logger.getLogger(Variable_Threshold16bitImages.class.getName()).log(Level.SEVERE, null, ex);
                 }
             }  
 //IJ.run(impR, "Close All", "");
@@ -766,7 +783,7 @@ Prefs.savePreferences();
         int labeloffsety = 5;
         int labeloffsetx = 7;
         Roi roiA;
-        ImagePlus impw = IJ.createImage("Collage", "8-bit black", framew, frameh, 1);
+        ImagePlus impw = IJ.createImage("Collage", "16-bit black", framew, frameh, 1);
         ImagePlus impm = IJ.createImage("Mask", "8-bit black", framew, frameh, 1);
         ij.WindowManager.setTempCurrentImage(impm);
         RoiManager roim = RoiManager.getInstance();
@@ -888,7 +905,7 @@ Prefs.savePreferences();
 //Filter results and generate a new collage
         int framew = imp.getWidth();
         int frameh = imp.getHeight();
-        ImagePlus impfil = IJ.createImage("Collage", "8-bit black", framew, frameh, 1);;
+        ImagePlus impfil = IJ.createImage("Collage", "16-bit black", framew, frameh, 1);;
         int i;
         int k;
         RoiManager roim = RoiManager.getInstance();
@@ -992,7 +1009,7 @@ Prefs.savePreferences();
                 try {
                     rtselect.saveAs(fname + Filtname + ".xls");
                 } catch (IOException ex) {
-                    Logger.getLogger(Variable_ThresholdGitHub.class.getName()).log(Level.SEVERE, null, ex);
+                    Logger.getLogger(Variable_Threshold16bitImages.class.getName()).log(Level.SEVERE, null, ex);
                 }
             }
             ROIFilterArray = Arrays.copyOf(RoiIndexArray, ia);
@@ -1005,5 +1022,7 @@ Prefs.savePreferences();
         }
         return impfil;
     }
+
+
 
 }
