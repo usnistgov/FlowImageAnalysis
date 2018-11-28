@@ -503,7 +503,7 @@ public class Variable_Threshold implements PlugIn {
                 Roi[] oldRois = rm.getRoisAsArray();
 
                      IJ.selectWindow("ROI Manager");
-           IJ.run("Close");
+             IJ.run("Close");
                 rm.reset(); 
                 IJ.log("Start Hull Loop ");
                 for (ii = 0; ii <= nROIs3 - 1; ii++) {
@@ -521,8 +521,9 @@ public class Variable_Threshold implements PlugIn {
                     }
                 }
                 for (ii = 0; ii <= nROIs3 - 1; ii++) {
-                                        rm.add(impf, oldRois[ii],oldRois[ii].getZPosition());
-                     }                                           
+                                        rm.add(impf, oldRois[ii],-1);
+                     }   
+
                 IJ.showProgress(1, 0);
                 IJ.showStatus(" ");
                 IJ.log("Hull Loop Duration " + Long.toString((System.currentTimeMillis() - startTime) / 1000));
