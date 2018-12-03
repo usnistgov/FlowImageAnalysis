@@ -570,7 +570,14 @@ public class Variable_Threshold16bitImages implements PlugIn {
             if (DoHull) {
                 IJ.run(impf, "Invert", "stack");
             }
+            ij.WindowManager.setTempCurrentImage(impf);
+            ImageConverter icimpf = new ImageConverter(impf);
+            icimpf.convertToGray16();
+
+            IJ.run(impf, "Macro...", "code=[if (v>=10 && v<=400) v=65535 ] stack");
             ImagePlus impt = ic.run("And create stack", impr2, impf);
+//            impr2.show();impf.show();nROIs3=6/0;
+
   if (ShowParticlesInImageStack) {
       IJ.run(impt, "Properties...", "channels=1 slices=1 frames="+StackSize+" unit=pixel pixel_width=1.0000 pixel_height=1.0000 voxel_depth=1.0000 frame=[1 sec]");
       impt.show();
@@ -889,14 +896,14 @@ Prefs.savePreferences();
         slices++;
         IJ.run(impm, "Create Selection", "");
         roiA = impm.getRoi();
-        roiA.setPosition(slices);
+ //       roiA.setPosition(slices);
         overlay1.add(roiA);
         impw.setOverlay(overlay1);
         impw.show();
         WindowManager.setTempCurrentImage(impw);
         roim.runCommand("Show All");
         roim.runCommand("Show None");
-        roim.select(1);
+ //       roim.select(1);
         IJ.run("Overlay Options...", "stroke=blue width=1 fill=none set");
         impw.show();
         return impw;
