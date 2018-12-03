@@ -68,6 +68,7 @@ public class Variable_Threshold implements PlugIn {
         boolean LabelCollageParticles = true;
         boolean ShowParticlesInImageStack=true;
         int labelinterval = 5;
+        int maxcollageslices = 100;
         if (index != -1) {
             name = RawStack.substring(0, index);
             fname = path + name + "0" + ".xls";
@@ -105,6 +106,7 @@ public class Variable_Threshold implements PlugIn {
             gdB.addCheckbox("Label collage particles ", LabelCollageParticles);
             gdB.addCheckbox("Enhance Contrast collage particles ", EnhanceContrastCollage);
             gdB.addNumericField("label interval for collage particles: ", labelinterval, 0);
+            gdB.addNumericField("Max number of collage slices: ", maxcollageslices, 0);
 
             gdB.addMessage("After 'OK' Load ROI .zip File associated with image stack");
             gdB.showDialog();
@@ -115,6 +117,7 @@ public class Variable_Threshold implements PlugIn {
             LabelCollageParticles = gdB.getNextBoolean();
             EnhanceContrastCollage  = gdB.getNextBoolean();
             labelinterval = (int) gdB.getNextNumber();
+            maxcollageslices = (int) gdB.getNextNumber();
                         RoiManager rm = RoiManager.getInstance();
         if (rm == null) {
             rm = new RoiManager();
@@ -199,6 +202,7 @@ public class Variable_Threshold implements PlugIn {
             gd.addNumericField("InitialDilateErodeSteps: ", InitialDilateErodeSteps, 0);
             gd.addNumericField("FinalDilateErodeSteps (if Do Hull not selected): ", FinalDilateErodeSteps, 0);
             gd.addNumericField("label interval for collage particles: ", labelinterval, 0);
+            gd.addNumericField("max number of collage slices: ", maxcollageslices, 0);
             gd.addCheckbox("Save Results ", SaveResults);
             gd.addCheckbox("Do Hull Analysis ", DoHull);
             gd.addCheckbox("Enhance Contrast collage particles ", EnhanceContrastCollage);
@@ -219,6 +223,7 @@ public class Variable_Threshold implements PlugIn {
             InitialDilateErodeSteps = (int) gd.getNextNumber();
             FinalDilateErodeSteps = (int) gd.getNextNumber();
             labelinterval = (int) gd.getNextNumber();
+            maxcollageslices = (int) gd.getNextNumber();
             SaveResults = (boolean) gd.getNextBoolean();
             DoHull = (boolean) gd.getNextBoolean();
             EnhanceContrastCollage = (boolean) gd.getNextBoolean();
@@ -288,6 +293,7 @@ public class Variable_Threshold implements PlugIn {
 
             IJ.run(imp2, "Analyze Particles...", "size=" + Minsizes + "-" + Maxsizes +/*Infinity"+*/ " pixel " + " circularity=" + MinCircs + "-" + MaxCircs + " display exclude clear add stack");
             String fDataSt;
+
             if (nThresholds == 1) 
             {rmA = RoiManager.getInstance();
              }            
@@ -345,7 +351,7 @@ public class Variable_Threshold implements PlugIn {
                         MaxGrayHi = MaxGraymax;
                     }
                     IJ.log("Range of MaxGray Dev for this bin: " + Float.toString(MaxGrayLo) + " - " + Float.toString(MaxGrayHi));
-                    for (i = 0; i < (nROIs - 1); i++) {
+                    for (i = 0; i <= (nROIs - 1); i++) {
 //              Finds all ROIs within the next Max Gray Range, counts them with j, and adds their location to MaxGrayArrayIndex     
                         if ((MaxGrayArray[i] >= MaxGrayLo) && (MaxGrayArray[i] < MaxGrayHi)) {
                             MaxGrayArrayIndex[j] = i;
@@ -382,12 +388,14 @@ public class Variable_Threshold implements PlugIn {
                 IJ.run(impf, "Fill Holes", "stack");
 //for (i = 0; i <FinalDilateErodeSteps; i++) {IJ.run(impf, "Erode", "stack");}
                 ij.WindowManager.setTempCurrentImage(impf);
+
+                
                 rmA.runCommand("Deselect");
                 rmA.runCommand("Delete");
                 IJ.run("Set Measurements...", "area min center stack redirect=" + StartStack + " decimal=3");
                  ParticleAnalyzer.setRoiManager(rmA);
                 IJ.run(impf, "Analyze Particles...", "size=" + "1" + "-Infinity pixel circularity=" + ".0" + "-1.00 display exclude clear add stack");
-                nROIs2 = rmA.getCount();
+                nROIs2 = rmA.getCount();           
                 int[] Bx2 = new int[nROIs2];
                 int[] By2 = new int[nROIs2];
                 int[] Bw2 = new int[nROIs2];
@@ -495,6 +503,7 @@ public class Variable_Threshold implements PlugIn {
                 nROIs3 = rm.getCount();
                 IJ.log("#ROIs after Joining Fragments " + Integer.toString(nROIs3));*/
             }
+
             if (DoHull) {
                 String roiname = "";
                 long startTime = System.currentTimeMillis();
@@ -503,7 +512,7 @@ public class Variable_Threshold implements PlugIn {
                 Roi[] oldRois = rm.getRoisAsArray();
 
                      IJ.selectWindow("ROI Manager");
-             IJ.run("Close");
+           IJ.run("Close");
                 rm.reset(); 
                 IJ.log("Start Hull Loop ");
                 for (ii = 0; ii <= nROIs3 - 1; ii++) {
@@ -520,7 +529,8 @@ public class Variable_Threshold implements PlugIn {
                         IJ.showStatus("Hull Loop");
                     }
                 }
-                for (ii = 0; ii <= nROIs3 - 1; ii++) {
+                                        
+                for (ii = 0; ii <= nROIs3-1 ; ii++) {
                                         rm.add(impf, oldRois[ii],-1);
                      }   
 
@@ -532,26 +542,28 @@ public class Variable_Threshold implements PlugIn {
                 impf = IJ.createImage(HullMask, "8-bit white", framew, frameh, StackSize);
                 IJ.run("Colors...", "foreground=black background=black selection=blue");
                 ij.WindowManager.setTempCurrentImage(impf);
-                rm.runCommand("Fill");
+                rm.runCommand("Fill");  
+
                 IJ.run(impf, "Invert", "stack");
-                ij.WindowManager.setTempCurrentImage(imp2);
+                ij.WindowManager.setTempCurrentImage(imp2);                            
                 rm.runCommand("Show All");
-                rm.runCommand("Show None");
-                impf = ic.run("And create stack", imp2, impf);
-                IJ.run(impf, "Invert", "stack");
+                rm.runCommand("Show None");                           
+                impf = ic.run("And create stack", imp2, impf);                           
+                IJ.run(impf, "Invert", "stack");                            
                 IJ.run(impf, "Invert LUT", "");
 
                 rt.update(measurements, impf, null);
+
+
                 IJ.run("Set Measurements...", MeasCommand + " redirect=" + RawStack + " decimal=3");
-                IJ.run(impf, "Analyze Particles...", "size=" + "1" + "-Infinity pixel circularity=" + "0.0" + "-1.00 display exclude clear add stack");
+                IJ.run(impf, "Analyze Particles...", "size=" + "1" + "-Infinity pixel circularity=" + "0.0" + "-1.00 display exclude clear add stack");                          
                 nROIs3 = rm.getCount();
                 IJ.log("#ROIs after Convex Hull " + Integer.toString(nROIs3));
             }
-
+            
             //******
-            imp.close();
-            imp2.close();
-
+            imp.close();            
+            imp2.close();           
             if (DoHull) {
                 IJ.run(impf, "Invert", "stack");
             }
@@ -561,6 +573,7 @@ public class Variable_Threshold implements PlugIn {
       impt.show();
 //                      IJ.saveAs(impt, "Tiff", path+name  + "C.tif");
   }
+
 //Save Results Table as xls file 
             if (SaveResults) {
                 String roiname;
@@ -579,7 +592,7 @@ public class Variable_Threshold implements PlugIn {
                 RoiIndexArray[i] = i;
             }
 
-            impc = Make_Collage(impr2, RoiIndexArray, LabelCollageParticles, labelinterval);
+            impc = Make_Collage(impr2, RoiIndexArray, LabelCollageParticles, labelinterval, maxcollageslices);
 
             if (SaveResults) {
                 IJ.saveAs(impc, "Tiff", fname.substring(0, fname.length() - 4) + "Collage.tif");
@@ -592,7 +605,7 @@ public class Variable_Threshold implements PlugIn {
             morefilter = !(DoFilter.wasCanceled());
         }
         while (morefilter) {
-            ImagePlus impfil = Make_Filtered_Collage(impr2, rt, fname, LabelCollageParticles, labelinterval, SaveResults);
+            ImagePlus impfil = Make_Filtered_Collage(impr2, rt, fname, LabelCollageParticles, labelinterval,maxcollageslices, SaveResults);
             impfil.show();
             GenericDialog DoFilter2 = new GenericDialog("Do Filter?");
             DoFilter2.removeAll();
@@ -749,7 +762,7 @@ Prefs.savePreferences();
     }
     //Makes collage of particles
 
-    public static ImagePlus Make_Collage(ImagePlus imp, int[] RoiArray, boolean LabelCollageParticles, int labelinterval) {
+    public static ImagePlus Make_Collage(ImagePlus imp, int[] RoiArray, boolean LabelCollageParticles, int labelinterval, int maxcollageslices) {
         int framew = imp.getWidth();
         int frameh = imp.getHeight();
         int border = 7;
@@ -806,6 +819,7 @@ Prefs.savePreferences();
             if (yp + h + ygap + 2 * border > frameh) {
                 newpage=true;
                 slices++;
+                if (slices<maxcollageslices) {
                 IJ.run(impm, "Create Selection", "");
                 Roi roi1 = impm.getRoi();
                 roi1.setPosition(slices);
@@ -818,7 +832,9 @@ Prefs.savePreferences();
                 roim.select(RoiArray[i]);
                 roi = impm.getRoi();
                 roi.setPosition(slices + 1);
+                }
             }
+            if (slices<maxcollageslices) {
             WindowManager.setTempCurrentImage(impm);
             xs = (int) roi.getXBase();
             ys = (int) roi.getYBase();
@@ -868,25 +884,25 @@ Prefs.savePreferences();
             if (newpage) {                
                 roi.setPosition(z);
                 newpage=false;}
-            
+            } else {break;}
             
         }
         slices++;
         IJ.run(impm, "Create Selection", "");
         roiA = impm.getRoi();
-        roiA.setPosition(slices);
+ //       roiA.setPosition(slices);
         overlay1.add(roiA);
         impw.setOverlay(overlay1);
         impw.show();
         WindowManager.setTempCurrentImage(impw);
         roim.runCommand("Show All");
         roim.runCommand("Show None");
-        roim.select(1);
+ //       roim.select(1);
         IJ.run("Overlay Options...", "stroke=blue width=1 fill=none set");
         impw.show();
         return impw;
     }
-    public static ImagePlus Make_Filtered_Collage(ImagePlus imp, ResultsTable rt, String fname, boolean LabelCollageParticles, int labelinterval, boolean SaveResults) {
+    public static ImagePlus Make_Filtered_Collage(ImagePlus imp, ResultsTable rt, String fname, boolean LabelCollageParticles, int labelinterval,int maxcollageslices, boolean SaveResults) {
 //Filter results and generate a new collage
         int framew = imp.getWidth();
         int frameh = imp.getHeight();
@@ -998,7 +1014,7 @@ Prefs.savePreferences();
                 }
             }
             ROIFilterArray = Arrays.copyOf(RoiIndexArray, ia);
-            impfil = Make_Collage(imp, ROIFilterArray, LabelCollageParticles, labelinterval);
+            impfil = Make_Collage(imp, ROIFilterArray, LabelCollageParticles, labelinterval, maxcollageslices);
             impfil.setTitle("Collage" + Filtname);
             if (SaveResults) {
                 IJ.saveAs(impfil, "Tiff", fname + Filtname + "Collage.tif");
