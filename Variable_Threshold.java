@@ -47,6 +47,7 @@ public class Variable_Threshold implements PlugIn {
 
         ImageCalculator ic = new ImageCalculator();
         ImagePlus impR = IJ.getImage();
+
         int framew = impR.getWidth();
         int frameh = impR.getHeight();
                     int measurements = systemMeasurements;
@@ -155,7 +156,7 @@ public class Variable_Threshold implements PlugIn {
             ImagePlus impc = IJ.createImage("Collage", "8-bit black", impR.getWidth(), impR.getHeight(), StackSize);
             rmA.runCommand("reset");
             IJ.run("Colors...", "foreground=white background=black selection=blue");
-
+            int aa;
             int j;
             int k;
             int border = 5;
@@ -240,6 +241,7 @@ public class Variable_Threshold implements PlugIn {
                 border = 7;
             }
             ImagePlus impf = IJ.createImage("FusedMask", "8-bit black", framew, frameh, StackSize);
+            ImagePlus impg = IJ.createImage(HullMask, "8-bit white", framew, frameh, StackSize);                
 
             if (SaveResults) {
                MeasCommand=DefineMeasurements(measurements); 
@@ -490,88 +492,74 @@ public class Variable_Threshold implements PlugIn {
         }
             nROIs3 = rm.getCount();
             IJ.log("#ROIs after Joining Fragments " + Integer.toString(nROIs3));
-
             int[] SelectArray2 = new int[nROIs3];
 
 // Convex Hull Analysis
-            if (nThresholds == 1) {
-/*                rm=rmA;
-                rmA.reset();
-                rmA.close();      */         
+            if (nThresholds == 1) {       
                 impf = imp2;
- /*               nROIs3 = nROIs;
-                nROIs3 = rm.getCount();
-                IJ.log("#ROIs after Joining Fragments " + Integer.toString(nROIs3));*/
             }
-
             if (DoHull) {
                 String roiname = "";
                 long startTime = System.currentTimeMillis();
                 int ii;
                 int ithous;
                 Roi[] oldRois = rm.getRoisAsArray();
-
                      IJ.selectWindow("ROI Manager");
-           IJ.run("Close");
+//           IJ.run("Close");
                 rm.reset(); 
-                IJ.log("Start Hull Loop ");
+                IJ.log("Start Hull Loop ");impf.show();                    
+                rm.runCommand(impf,"Show None");
                 for (ii = 0; ii <= nROIs3 - 1; ii++) {
-                     roiname=oldRois[ii].getName();
+                    roiname=oldRois[ii].getName();
                     rm.addRoi(oldRois[ii]);
-                    rm.select(0);
+                    rm.select(ii);  
                     IJ.run(impf, "Convex Hull", "");
-                    oldRois[ii] = impf.getRoi();
-                    oldRois[ii].setName(roiname);                    
-                    rm.reset();
-                    ithous = ii / 2000;
+                    rm.addRoi(impf.getRoi());
+                    rm.select(ii);
+                    rm.runCommand(impf,"Delete");rm.select(ii);
+                    oldRois[ii] = impf.getRoi();                              
+                                    ithous = ii / 2000;
                     if ((2000 * ithous) == ii) {
                          IJ.showProgress(ii, nROIs3);
                         IJ.showStatus("Hull Loop");
                     }
                 }
-                                        
-                for (ii = 0; ii <= nROIs3-1 ; ii++) {
-                                        rm.add(impf, oldRois[ii],-1);
-                     }   
-
+                for (ii = 0; ii <= nROIs3 - 1; ii++) {
+                                        rm.addRoi(oldRois[ii]);
+                                        }  
                 IJ.showProgress(1, 0);
                 IJ.showStatus(" ");
                 IJ.log("Hull Loop Duration " + Long.toString((System.currentTimeMillis() - startTime) / 1000));
                 rm.runCommand("Deselect");
                 rm.runCommand("Deselect");
-                impf = IJ.createImage(HullMask, "8-bit white", framew, frameh, StackSize);
+                impf.changes = false;  impf.close();
                 IJ.run("Colors...", "foreground=black background=black selection=blue");
-                ij.WindowManager.setTempCurrentImage(impf);
-                rm.runCommand("Fill");  
-
-                IJ.run(impf, "Invert", "stack");
-                ij.WindowManager.setTempCurrentImage(imp2);                            
+                ij.WindowManager.setTempCurrentImage(impg);
+                rm.runCommand("Fill");
+                IJ.run(impg, "Invert", "stack");
+                ij.WindowManager.setTempCurrentImage(imp2);
                 rm.runCommand("Show All");
-                rm.runCommand("Show None");                           
-                impf = ic.run("And create stack", imp2, impf);                           
-                IJ.run(impf, "Invert", "stack");                            
-                IJ.run(impf, "Invert LUT", "");
-
-                rt.update(measurements, impf, null);
-
-
+                rm.runCommand("Show None");
+                impg = ic.run("And create stack", imp2, impg);
+                IJ.run(impg, "Invert", "stack");
+                IJ.run(impg, "Invert LUT", "");
+                rt.update(measurements, impg, null);
                 IJ.run("Set Measurements...", MeasCommand + " redirect=" + RawStack + " decimal=3");
-                IJ.run(impf, "Analyze Particles...", "size=" + "1" + "-Infinity pixel circularity=" + "0.0" + "-1.00 display exclude clear add stack");                          
+                IJ.run(impg, "Analyze Particles...", "size=" + "1" + "-Infinity pixel circularity=" + "0.0" + "-1.00 display exclude clear add stack");                          
                 nROIs3 = rm.getCount();
                 IJ.log("#ROIs after Convex Hull " + Integer.toString(nROIs3));
             }
-            
-            //******
+//******
             imp.close();            
-            imp2.close();           
+            imp2.close();     
             if (DoHull) {
-                IJ.run(impf, "Invert", "stack");
+                IJ.run(impg, "Invert", "stack");
             }
-            ImagePlus impt = ic.run("And create stack", impr2, impf);
+            ImagePlus impt = ic.run("And create stack", impr2, impg);
   if (ShowParticlesInImageStack) {
       IJ.run(impt, "Properties...", "channels=1 slices=1 frames="+StackSize+" unit=pixel pixel_width=1.0000 pixel_height=1.0000 voxel_depth=1.0000 frame=[1 sec]");
       impt.show();
-//                      IJ.saveAs(impt, "Tiff", path+name  + "C.tif");
+ //                     IJ.saveAs(impt, "Tiff", path+name  + "T.tif");
   }
 
 //Save Results Table as xls file 
@@ -598,7 +586,7 @@ public class Variable_Threshold implements PlugIn {
                 IJ.saveAs(impc, "Tiff", fname.substring(0, fname.length() - 4) + "Collage.tif");
             }
             impc.show();
-
+impg.close();
             DoFilter.addMessage("press OK to perform Filters");
             DoFilter.addMessage("press Cancel to stop");
             DoFilter.showDialog();
@@ -890,7 +878,7 @@ Prefs.savePreferences();
         slices++;
         IJ.run(impm, "Create Selection", "");
         roiA = impm.getRoi();
- //       roiA.setPosition(slices);
+        roiA.setPosition(slices);
         overlay1.add(roiA);
         impw.setOverlay(overlay1);
         impw.show();
