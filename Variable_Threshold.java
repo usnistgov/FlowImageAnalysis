@@ -170,8 +170,8 @@ public class Variable_Threshold implements PlugIn {
             String MaxCircs = Float.toString(MaxCirc);
             int FinalDilateErodeSteps = 0;
             int InitialDilateErodeSteps = 1;
+//            int ThreshStart = 20;
             int ThreshStart = 8;
-//            int ThreshStart = 8;
             int ThreshDelta = 0;
             int nThresholds = 20;
  //           int nThresholds = 20;
@@ -818,6 +818,7 @@ Prefs.savePreferences();
                 yp = border;
                 ypmax = yp + h + ygap + 2 * border;
                 roim.select(RoiArray[i]);
+                impm.setSlice(slices+1);
                 roi = impm.getRoi();
                 roi.setPosition(slices + 1);
                 }
@@ -827,7 +828,7 @@ Prefs.savePreferences();
             xs = (int) roi.getXBase();
             ys = (int) roi.getYBase();
             roi.setLocation(xp, yp);
-            impm.updateImage();
+            impm.setSlice(slices+1);
             ImageProcessor ipm = impm.getProcessor();
             ipm.setColor(255);
             ipm.fill(roi.getMask());
