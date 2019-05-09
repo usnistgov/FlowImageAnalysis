@@ -342,7 +342,7 @@ public class Variable_Threshold implements PlugIn {
             IJ.log("MaxGraymin " + Float.toString(MaxGraymin));
 
 
-                float deltaMaxGray = (MaxGrayupper - MaxGraymin) / nThresholds + (float) 0.01;
+                float deltaMaxGray = (MaxGraymax - MaxGraymin) / nThresholds + (float) 0.01;
                 int jsum = 0;
                 for (k = 0; k < nThresholds; k++) {
                     IJ.log("working on kth threshold " + Integer.toString(k));
