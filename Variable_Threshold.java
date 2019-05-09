@@ -327,7 +327,7 @@ public class Variable_Threshold implements PlugIn {
                 r2 = roi2.getBounds();
                 Bx1[i] = r2.x;
                 By1[i] = r2.y;
-                Bw1[i] = r2.width;
+                Bw1[i] = r2.width; 
                 Bh1[i] = r2.height;
                 Bz1[i] = roi2.getPosition();
 
@@ -403,35 +403,55 @@ public class Variable_Threshold implements PlugIn {
                 int[] Bw2 = new int[nROIs2];
                 int[] Bh2 = new int[nROIs2];
                 int[] Bz2 = new int[nROIs2];
+                int[] Bzframerange2 =new int[StackSize];
                 Roi roi3;
                 Polygon foo;
                 IJ.log("#ROIS after Thresholding " + Integer.toString(nROIs2));
-                for (i = 0; i <= nROIs2 - 1; i++) {
+                j=0;
+                Bzframerange2[0]=0;
+                    rmA.select(0);
+                    roi3 = impf.getRoi();
+                    foo = roi3.getPolygon();
+                    Bx2[0] = foo.xpoints[1];
+                    By2[0] = foo.ypoints[1];
+                    Bz2[0] = roi3.getPosition();
+                for (i = 1; i <= nROIs2 - 1; i++) {
                     rmA.select(i);
                     roi3 = impf.getRoi();
                     foo = roi3.getPolygon();
                     Bx2[i] = foo.xpoints[1];
                     By2[i] = foo.ypoints[1];
                     Bz2[i] = roi3.getPosition();
+                    if (Bz2[i]>Bz2[i-1]) 
+                    {j=j+1;Bzframerange2[j]=i;} //finding values of i at which frame changes, will only look for fragments in the same frame
                 }
+                if (j+1<StackSize) Bzframerange2[j+1]=nROIs2-1;
+
 // Examine each original ROI bounds to see if there are now fragments in there
                 ImageProcessor ipf = impf.getProcessor();
                 ipf.setColor(Color.black);
-                int jmin = 0;
+                int frameval = 0;
                 int newjmin = 0;
+                int jmin=0;
+                int jmax=1;
                 int fragcount = 1;
                 int fragtotal = 0;
                 int xbegin = 0;
                 int ybegin = 0;
                 int xend;
                 int yend;
+
                 for (i = 0; i <= nROIs - 1; i++) {
                     fragtotal = fragtotal + fragcount - 1;
                     fragcount = 0;
+                    if (i>1) {if (Bz1[i]>Bz1[i-1]) frameval++;}
+                    jmin=Bzframerange2[frameval];
+                    if (frameval==StackSize-1) {jmax=nROIs2-1;}
+                    else {jmax=Bzframerange2[frameval+1];}
                     jloop:
-                    for (j = jmin; j <= nROIs2 - 1; j++) {
-                        if (Bx2[j] >= Bx1[i] && By2[j] >= By1[i] && (Bz2[j] == Bz1[i])) {
-                            if (Bx2[j] <= Bx1[i] + Bw1[i] && By2[j] <= By1[i] + Bh1[i]) {
+                    for (j = jmin; j <= jmax; j++) {
+                        if ((Bx2[j] >= Bx1[i] && By2[j] >= By1[i] && (Bz2[j] == Bz1[i])) &&
+                             (Bx2[j] <= Bx1[i] + Bw1[i] && By2[j] <= By1[i] + Bh1[i])) {
                                 //inside the ith box of original ROI
                                 if (fragcount == 0) {
                                     //first found particle in the ith box of original ROI
@@ -452,16 +472,11 @@ public class Variable_Threshold implements PlugIn {
                                     ybegin = yend;
                                     xbegin = xend;
                                 }
-                            } else //outside the i'th box of original ROI
-                            {
-                                if ((Bx2[j] > Bx1[i] + Bw1[i] && By2[j] > By1[i] + Bh1[i]) || (Bz2[j] > Bz1[i])) {
-                                    //outside and beyond in both x,y  or beyond in z the ith box of original ROI    
-                                    break jloop;
-                                }
-                            }
-                        }
+                            } 
+
+                        
                     }
-                    jmin = newjmin; //next time look for particles beyond the ones already found
+//                    jmin = newjmin; //next time look for particles beyond the ones already found
                 }
                 IJ.log("Fragmented Particles Total " + Integer.toString(fragtotal));
                 IJ.setAutoThreshold(impf, "Default");
@@ -806,6 +821,7 @@ Prefs.savePreferences();
             }
             if (yp + h + ygap + 2 * border > frameh) {
                 newpage=true;
+                  impm.setSlice(slices+1);          
                 slices++;
                 if (slices<maxcollageslices) {
                 IJ.run(impm, "Create Selection", "");
@@ -814,11 +830,12 @@ Prefs.savePreferences();
                 overlay1.add(roi1);
                 IJ.run(impw, "Add Slice", "");
                 IJ.run(impm, "Add Slice", "");
+                impm.setSlice(slices+1);   
                 xp = border;
                 yp = border;
                 ypmax = yp + h + ygap + 2 * border;
                 roim.select(RoiArray[i]);
-                impm.setSlice(slices+1);
+
                 roi = impm.getRoi();
                 roi.setPosition(slices + 1);
                 }
@@ -828,7 +845,7 @@ Prefs.savePreferences();
             xs = (int) roi.getXBase();
             ys = (int) roi.getYBase();
             roi.setLocation(xp, yp);
-            impm.setSlice(slices+1);
+            impm.setSlice(slices+1); 
             ImageProcessor ipm = impm.getProcessor();
             ipm.setColor(255);
             ipm.fill(roi.getMask());
