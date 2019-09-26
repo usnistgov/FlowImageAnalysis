@@ -69,6 +69,7 @@ public class Variable_Threshold16bitImages implements PlugIn {
         boolean LabelCollageParticles = true;
         boolean ShowParticlesInImageStack=true;
         int labelinterval = 5;
+        int maxcollageslices = 100;
         if (index != -1) {
             name = RawStack.substring(0, index);
             fname = path + name + "0" + ".xls";
@@ -106,6 +107,7 @@ public class Variable_Threshold16bitImages implements PlugIn {
             gdB.addCheckbox("Label collage particles ", LabelCollageParticles);
             gdB.addCheckbox("Enhance Contrast collage particles ", EnhanceContrastCollage);
             gdB.addNumericField("label interval for collage particles: ", labelinterval, 0);
+            gdB.addNumericField("Max number of collage slices: ", maxcollageslices, 0);
 
             gdB.addMessage("After 'OK' Load ROI .zip File associated with image stack");
             gdB.showDialog();
@@ -116,6 +118,7 @@ public class Variable_Threshold16bitImages implements PlugIn {
             LabelCollageParticles = gdB.getNextBoolean();
             EnhanceContrastCollage  = gdB.getNextBoolean();
             labelinterval = (int) gdB.getNextNumber();
+            maxcollageslices = (int) gdB.getNextNumber();
                         RoiManager rm = RoiManager.getInstance();
         if (rm == null) {
             rm = new RoiManager();
@@ -201,6 +204,7 @@ public class Variable_Threshold16bitImages implements PlugIn {
             gd.addNumericField("InitialDilateErodeSteps: ", InitialDilateErodeSteps, 0);
             gd.addNumericField("FinalDilateErodeSteps (if Do Hull not selected): ", FinalDilateErodeSteps, 0);
             gd.addNumericField("label interval for collage particles: ", labelinterval, 0);
+            gd.addNumericField("max number of collage slices: ", maxcollageslices, 0);
             gd.addCheckbox("Save Results ", SaveResults);
             gd.addCheckbox("Do Hull Analysis ", DoHull);
             gd.addCheckbox("Enhance Contrast collage particles ", EnhanceContrastCollage);
@@ -221,6 +225,7 @@ public class Variable_Threshold16bitImages implements PlugIn {
             InitialDilateErodeSteps = (int) gd.getNextNumber();
             FinalDilateErodeSteps = (int) gd.getNextNumber();
             labelinterval = (int) gd.getNextNumber();
+            maxcollageslices = (int) gd.getNextNumber();
             SaveResults = (boolean) gd.getNextBoolean();
             DoHull = (boolean) gd.getNextBoolean();
             EnhanceContrastCollage = (boolean) gd.getNextBoolean();
@@ -347,7 +352,7 @@ public class Variable_Threshold16bitImages implements PlugIn {
                         MaxGrayHi = MaxGraymax;
                     }
                     IJ.log("Range of MaxGray Dev for this bin: " + Float.toString(MaxGrayLo) + " - " + Float.toString(MaxGrayHi));
-                    for (i = 0; i < (nROIs - 1); i++) {
+                    for (i = 0; i <= (nROIs - 1); i++) {
 //              Finds all ROIs within the next Max Gray Range, counts them with j, and adds their location to MaxGrayArrayIndex     
                         if ((MaxGrayArray[i] >= MaxGrayLo) && (MaxGrayArray[i] < MaxGrayHi)) {
                             MaxGrayArrayIndex[j] = i;
@@ -362,17 +367,6 @@ public class Variable_Threshold16bitImages implements PlugIn {
                         WindowManager.setTempCurrentImage(impn);
                         rmA.setSelectedIndexes(SelectArray);
                         rmA.runCommand("Fill");
-                        double fooq=257;
-                        
-
-                                                   
-//                       	ImageProcessor ipn = impn.getProcessor();
-                        ShortProcessor spn=impn.getProcessor().convertToShortProcessor(false);
-                        spn.multiply(fooq);
-
-  
-
-
                         ImagePlus impt = ic.run("And create stack", imp, impn);
 
                         IJ.log("Number of ROIs in MaxGray Dev Bin " + Integer.toString(j));
@@ -383,8 +377,6 @@ public class Variable_Threshold16bitImages implements PlugIn {
                             ThreshReset = ThreshResetMax;
                         }
                         IJ.log("ThreshReset: " + Float.toString(ThreshReset));
-/*                        impt.show();
-                        float foob=6/0;*/
                         IJ.setThreshold(impt, ThreshReset, 65535);
                         IJ.run(impt, "Make Binary", "method=Default background=Default");
 //                OR this mask with building-up mask from previous iterations               
@@ -409,35 +401,55 @@ public class Variable_Threshold16bitImages implements PlugIn {
                 int[] Bw2 = new int[nROIs2];
                 int[] Bh2 = new int[nROIs2];
                 int[] Bz2 = new int[nROIs2];
+                int[] Bzframerange2 =new int[StackSize];
                 Roi roi3;
                 Polygon foo;
                 IJ.log("#ROIS after Thresholding " + Integer.toString(nROIs2));
-                for (i = 0; i <= nROIs2 - 1; i++) {
+                j=0;
+                Bzframerange2[0]=0;
+                    rmA.select(0);
+                    roi3 = impf.getRoi();
+                    foo = roi3.getPolygon();
+                    Bx2[0] = foo.xpoints[1];
+                    By2[0] = foo.ypoints[1];
+                    Bz2[0] = roi3.getPosition();
+                for (i = 1; i <= nROIs2 - 1; i++) {
                     rmA.select(i);
                     roi3 = impf.getRoi();
                     foo = roi3.getPolygon();
                     Bx2[i] = foo.xpoints[1];
                     By2[i] = foo.ypoints[1];
                     Bz2[i] = roi3.getPosition();
+                    if (Bz2[i]>Bz2[i-1]) 
+                    {j=j+1;Bzframerange2[j]=i;} //finding values of i at which frame changes, will only look for fragments in the same frame
                 }
+                if (j+1<StackSize) Bzframerange2[j+1]=nROIs2-1;
+
 // Examine each original ROI bounds to see if there are now fragments in there
                 ImageProcessor ipf = impf.getProcessor();
                 ipf.setColor(Color.black);
-                int jmin = 0;
+                int frameval = 0;
                 int newjmin = 0;
+                int jmin=0;
+                int jmax=1;
                 int fragcount = 1;
                 int fragtotal = 0;
                 int xbegin = 0;
                 int ybegin = 0;
                 int xend;
                 int yend;
+
                 for (i = 0; i <= nROIs - 1; i++) {
                     fragtotal = fragtotal + fragcount - 1;
                     fragcount = 0;
+                    if (i>1) {if (Bz1[i]>Bz1[i-1]) frameval++;}
+                    jmin=Bzframerange2[frameval];
+                    if (frameval==StackSize-1) {jmax=nROIs2-1;}
+                    else {jmax=Bzframerange2[frameval+1];}
                     jloop:
-                    for (j = jmin; j <= nROIs2 - 1; j++) {
-                        if (Bx2[j] >= Bx1[i] && By2[j] >= By1[i] && (Bz2[j] == Bz1[i])) {
-                            if (Bx2[j] <= Bx1[i] + Bw1[i] && By2[j] <= By1[i] + Bh1[i]) {
+                    for (j = jmin; j <= jmax; j++) {
+                        if ((Bx2[j] >= Bx1[i] && By2[j] >= By1[i] && (Bz2[j] == Bz1[i])) &&
+                             (Bx2[j] <= Bx1[i] + Bw1[i] && By2[j] <= By1[i] + Bh1[i])) {
                                 //inside the ith box of original ROI
                                 if (fragcount == 0) {
                                     //first found particle in the ith box of original ROI
@@ -458,16 +470,11 @@ public class Variable_Threshold16bitImages implements PlugIn {
                                     ybegin = yend;
                                     xbegin = xend;
                                 }
-                            } else //outside the i'th box of original ROI
-                            {
-                                if ((Bx2[j] > Bx1[i] + Bw1[i] && By2[j] > By1[i] + Bh1[i]) || (Bz2[j] > Bz1[i])) {
-                                    //outside and beyond in both x,y  or beyond in z the ith box of original ROI    
-                                    break jloop;
-                                }
-                            }
-                        }
+                            } 
+
+                        
                     }
-                    jmin = newjmin; //next time look for particles beyond the ones already found
+//                    jmin = newjmin; //next time look for particles beyond the ones already found
                 }
                 IJ.log("Fragmented Particles Total " + Integer.toString(fragtotal));
                 IJ.setAutoThreshold(impf, "Default");
@@ -593,7 +600,7 @@ public class Variable_Threshold16bitImages implements PlugIn {
                 RoiIndexArray[i] = i;
             }
 
-            impc = Make_Collage(impr2, RoiIndexArray, LabelCollageParticles, labelinterval);
+            impc = Make_Collage(impr2, RoiIndexArray, LabelCollageParticles, labelinterval, maxcollageslices);
 
             if (SaveResults) {
                 IJ.saveAs(impc, "Tiff", fname.substring(0, fname.length() - 4) + "Collage.tif");
@@ -606,7 +613,8 @@ impg.close();
             morefilter = !(DoFilter.wasCanceled());
         }
         while (morefilter) {
-            ImagePlus impfil = Make_Filtered_Collage(impr2, rt, fname, LabelCollageParticles, labelinterval, SaveResults);
+//            ImagePlus impfil = Make_Filtered_Collage(impr2, rt, fname, LabelCollageParticles, labelinterval, SaveResults);
+            ImagePlus impfil = Make_Filtered_Collage(impr2, rt, fname, LabelCollageParticles, labelinterval,maxcollageslices, SaveResults);            
             impfil.show();
             GenericDialog DoFilter2 = new GenericDialog("Do Filter?");
             DoFilter2.removeAll();
@@ -762,8 +770,8 @@ Prefs.savePreferences();
         return impsubfiles;
     }
     //Makes collage of particles
-
-    public static ImagePlus Make_Collage(ImagePlus imp, int[] RoiArray, boolean LabelCollageParticles, int labelinterval) {
+    public static ImagePlus Make_Collage(ImagePlus imp, int[] RoiArray, boolean LabelCollageParticles, int labelinterval, int maxcollageslices) {
+//    public static ImagePlus Make_Collage(ImagePlus imp, int[] RoiArray, boolean LabelCollageParticles, int labelinterval) {
         int framew = imp.getWidth();
         int frameh = imp.getHeight();
         int border = 7;
@@ -819,27 +827,30 @@ Prefs.savePreferences();
             }
             if (yp + h + ygap + 2 * border > frameh) {
                 newpage=true;
+                  impm.setSlice(slices+1);          
                 slices++;
+                if (slices<maxcollageslices) {
                 IJ.run(impm, "Create Selection", "");
                 Roi roi1 = impm.getRoi();
                 roi1.setPosition(slices);
                 overlay1.add(roi1);
                 IJ.run(impw, "Add Slice", "");
                 IJ.run(impm, "Add Slice", "");
+                impm.setSlice(slices+1);   
                 xp = border;
                 yp = border;
                 ypmax = yp + h + ygap + 2 * border;
                 roim.select(RoiArray[i]);
-                impm.setSlice(slices+1);
                 roi = impm.getRoi();
                 roi.setPosition(slices + 1);
+                }
             }
+            if (slices<maxcollageslices) {
             WindowManager.setTempCurrentImage(impm);
             xs = (int) roi.getXBase();
             ys = (int) roi.getYBase();
             roi.setLocation(xp, yp);
-            impm.setSlice(slices+1);            
-            impm.updateImage();
+            impm.setSlice(slices+1); 
             ImageProcessor ipm = impm.getProcessor();
             ipm.setColor(255);
             ipm.fill(roi.getMask());
@@ -884,7 +895,7 @@ Prefs.savePreferences();
             if (newpage) {                
                 roi.setPosition(z);
                 newpage=false;}
-            
+            } else {break;}
             
         }
         slices++;
@@ -902,7 +913,7 @@ Prefs.savePreferences();
         impw.show();
         return impw;
     }
-    public static ImagePlus Make_Filtered_Collage(ImagePlus imp, ResultsTable rt, String fname, boolean LabelCollageParticles, int labelinterval, boolean SaveResults) {
+    public static ImagePlus Make_Filtered_Collage(ImagePlus imp, ResultsTable rt, String fname, boolean LabelCollageParticles, int labelinterval,int maxcollageslices, boolean SaveResults) {
 //Filter results and generate a new collage
         int framew = imp.getWidth();
         int frameh = imp.getHeight();
@@ -1014,7 +1025,7 @@ Prefs.savePreferences();
                 }
             }
             ROIFilterArray = Arrays.copyOf(RoiIndexArray, ia);
-            impfil = Make_Collage(imp, ROIFilterArray, LabelCollageParticles, labelinterval);
+            impfil = Make_Collage(imp, ROIFilterArray, LabelCollageParticles, labelinterval, maxcollageslices);
             impfil.setTitle("Collage" + Filtname);
             if (SaveResults) {
                 IJ.saveAs(impfil, "Tiff", fname + Filtname + "Collage.tif");
