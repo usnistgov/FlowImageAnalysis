@@ -186,10 +186,8 @@ rt.addValue("Diam", (double) datacolumnresult[ib]);
             int ThreshStart = 8;
             int LowestValDark=ThreshStart;
             int LightPixThreshold=10;
-//            int ThreshStart = 8;
             int ThreshDelta = 0;
             int nThresholds = 35;
- //           int nThresholds = 20;
             float MaxGray2ThreshFactor = (float) 0.45;
             String MaxGray2ThreshFactors = Float.toString(MaxGray2ThreshFactor);
             float ThreshReset;
@@ -197,6 +195,8 @@ rt.addValue("Diam", (double) datacolumnresult[ib]);
             String ThreshResetMaxs = Float.toString(ThreshResetMax);
             boolean DoHull = true;
             boolean DoFrag = true;
+            boolean DarkPixelsOnly = false;
+            boolean Fluorescence =false;
             boolean RemoveEdgeParticles = false;
             boolean removeallfragments = false;            
             boolean areaboolean = true;
@@ -212,7 +212,7 @@ rt.addValue("Diam", (double) datacolumnresult[ib]);
             GenericDialog gd = new GenericDialog("Set Parameters");
             gd.addNumericField("Lowest Value Dark: ", LowestValDark, 0);            
             gd.addNumericField("Beginning Threshold: ", ThreshStart, 0);
-            gd.addNumericField("Fixed thresh value light pixels (enter 300 for dark only pixels, enter 1 for fluorescent-bright-on-blackbackground)", LightPixThreshold,0);
+            gd.addNumericField("Fixed thresh value light pixels (for dark only pixels use checkbox below) (enter 1 for fluorescent-bright-on-blackbackground)", LightPixThreshold,0); 
             gd.addStringField("MaxGray2ThreshFactors: ", MaxGray2ThreshFactors);
             gd.addNumericField("Number of Thresholds: ", nThresholds, 0);
             gd.addStringField("Max Value for Reset Threshold: ", ThreshResetMaxs);
@@ -224,6 +224,8 @@ rt.addValue("Diam", (double) datacolumnresult[ib]);
             gd.addNumericField("FinalDilateErodeSteps (if Do Hull not selected): ", FinalDilateErodeSteps, 0);
             gd.addNumericField("label interval for collage particles: ", labelinterval, 0);
             gd.addNumericField("max number of collage slices: ", maxcollageslices, 0);
+            gd.addCheckbox("Dark Pixels only analysis", DarkPixelsOnly); 
+            gd.addCheckbox("Fluorescence particles analysis (Particles are bright)", Fluorescence);               
             gd.addCheckbox("Remove Edge Particles ", RemoveEdgeParticles);
             gd.addCheckbox("Save Results ", SaveResults);
             gd.addCheckbox("Canny Method ", CannyMethod);            
@@ -251,6 +253,8 @@ rt.addValue("Diam", (double) datacolumnresult[ib]);
             FinalDilateErodeSteps = (int) gd.getNextNumber();
             labelinterval = (int) gd.getNextNumber();
             maxcollageslices = (int) gd.getNextNumber();
+            DarkPixelsOnly = (boolean) gd.getNextBoolean();  if (DarkPixelsOnly) LightPixThreshold=70000;
+            Fluorescence = (boolean) gd.getNextBoolean();  if (Fluorescence) LightPixThreshold=1; 
             RemoveEdgeParticles = (boolean) gd.getNextBoolean();        
             SaveResults = (boolean) gd.getNextBoolean();
             CannyMethod = (boolean) gd.getNextBoolean();            
@@ -265,7 +269,6 @@ rt.addValue("Diam", (double) datacolumnresult[ib]);
             ThreshResetMax = Float.valueOf(ThreshResetMaxs);
             
             ImagePlus imp = Remove_Background(impR,LowestValDark,LightPixThreshold);
-//            ImagePlus imp = impR;
             ImageStatistics stats = ImageStatistics.getStatistics(imp.getProcessor(), ImageStatistics.MIN_MAX, null);
             IJ.log("max of raw image" + Double.toString(stats.max));
             String StartStack = imp.getTitle();
@@ -357,10 +360,6 @@ rt.addValue("Diam", (double) datacolumnresult[ib]);
 
             float[] MaxGrayArray = new float[nROIs];
             int[] MaxGrayArrayIndex = new int[nROIs];
-/*            int[] Bx1 = new int[nROIs];
-            int[] By1 = new int[nROIs];
-            int[] Bw1 = new int[nROIs];
-            int[] Bh1 = new int[nROIs];*/
             int[] Bz1 = new int[nROIs];
             rt = ResultsTable.getResultsTable();
             if (nThresholds > 1) {
@@ -377,12 +376,6 @@ rt.addValue("Diam", (double) datacolumnresult[ib]);
             for (i = 0; i <= nROIs - 1; i++) {
                 rmA.select(i);
                 roi2 = imp2.getRoi();
-/*                r2 = roi2.getBounds();
-                fooc = roi2.getPolygon();
-                    Bx1[i] = fooc.xpoints[1];
-                    By1[i] = fooc.ypoints[1];
-                Bw1[i] = r2.width;
-                Bh1[i] = r2.height;*/
                 Bz1[i] = roi2.getPosition();
 
                 if (MaxGrayArray[i] > MaxGraymax) {
@@ -471,8 +464,8 @@ rt.addValue("Diam", (double) datacolumnresult[ib]);
                         IJ.run(impt, "Make Binary", "method=Default background=Default");
 //comment the below line for fluorescent imaged particles
                         dilate_extra=(int) ThreshReset*0/(2*ThreshStart);
-//uncomment the below line for fluorescent imaged particles
-//                        dilate_extra=(int) (ThreshReset*1./(3*ThreshStart)); if (dilate_extra<1)dilate_extra=1;
+//below line for fluorescent imaged particles                        
+if (Fluorescence) dilate_extra=(int) (ThreshReset*1./(3*ThreshStart)); if (dilate_extra<1)dilate_extra=1;
                         for (i = 0; i < InitialDilateErodeSteps; i++) {
                          IJ.run(impt, "Dilate", "stack");
                          }
@@ -487,10 +480,12 @@ rt.addValue("Diam", (double) datacolumnresult[ib]);
             IJ.run(impt, "Analyze Particles...", "size=" + Minsizes + "-" + Maxsizes +/*Infinity"+*/ " pixel " + " circularity=" + MinCircs + "-" + MaxCircs + " display exclude clear add stack");
 //            IJ.run(impcc, "Analyze Particles...", "size=" + Minsizes + "-" + Maxsizes +/*Infinity"+*/ " pixel " + " circularity=" + MinCircs + "-" + MaxCircs + " display exclude clear add stack");
 //                IJ.run(impt, "Analyze Particles...", "size=" + "1" + "-Infinity pixel circularity=" + ".0" + "-1.00 display exclude clear add stack");
-//uncomment the below lines for fluorescent imaged particles
-/*                        for (i = 0; i < InitialDilateErodeSteps+0+dilate_extra; i++) {
+//below lines for fluorescent imaged particles
+if (Fluorescence){
+                        for (i = 0; i < InitialDilateErodeSteps+0+dilate_extra; i++) {
                          IJ.run(impt, "Dilate", "stack");
-                         }*/
+                         }
+                 }
 
             IJ.log(Integer.toString(rmC.getCount()));
             rmC.close();
