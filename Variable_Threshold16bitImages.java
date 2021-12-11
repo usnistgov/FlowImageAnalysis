@@ -66,6 +66,7 @@ public class Variable_Threshold16bitImages implements PlugIn {
         String fname = "";
         int index = RawStack.lastIndexOf('.');
         int i;
+        int tarea=0, tmean=0, tmin=0, tmax=0;
         boolean LabelCollageParticles = true;
         boolean ShowParticlesInImageStack=true;
         int labelinterval = 5;
@@ -84,6 +85,7 @@ public class Variable_Threshold16bitImages implements PlugIn {
         }
         IJ.log("\\Clear");
         boolean SaveResults = true;
+        boolean CannyMethod = false;
         if (ij.WindowManager.getWindow("ROI Manager")!=null){
         IJ.selectWindow("ROI Manager");
            IJ.run("Close");}
@@ -114,7 +116,7 @@ public class Variable_Threshold16bitImages implements PlugIn {
             if (gdB.wasCanceled()) {
                 return;
             }
-            SaveResults = gdB.getNextBoolean();
+            SaveResults = gdB.getNextBoolean();            
             LabelCollageParticles = gdB.getNextBoolean();
             EnhanceContrastCollage  = gdB.getNextBoolean();
             labelinterval = (int) gdB.getNextNumber();
@@ -140,28 +142,38 @@ public class Variable_Threshold16bitImages implements PlugIn {
                            IJ.run("Set Measurements...", MeasCommand + " redirect=" + RawStack + " decimal=3");
             rm.runCommand("Measure");
             rt = ResultsTable.getResultsTable();
+                          float [][] data_array =GetResultsArray(rt);
+              String[] headerArrayB=GetResultsHeaderArray(rt);
+                          float [] datacolumn1=GetColumnArray("Perim.",rt);
+            float [] datacolumn2=GetColumnArray("Area",rt);
+            int rtlen=rt.getCounter();
+            float [] datacolumnresult=new float[rtlen];
+//            for (i=0;i<rtlen;i++) datacolumnresult[i]=datacolumn1[i]/datacolumn2[i];
+            for (i=0;i<rtlen;i++) datacolumnresult[i]=(float)(0.238*2*Math.sqrt(datacolumn2[i]/3.1416));
+            rt.reset();
+            int ib;
+            for (ib=0; ib<rtlen; ib++)         {
+//            IJ.log(Integer.toString(ib)+" "+headerArrayB[0]+" "+Float.toString(data_arrayB[1][ib]));
+            rt.incrementCounter();
+            rt.addValue("Particle", ib);
+for (i=1;i<headerArrayB.length;i++) rt.addValue(headerArrayB[i], (double) data_array[i][ib]); 
+ 
+//rt.addValue("Perim._Area", (double) datacolumnresult[ib]); 
+rt.addValue("Diam", (double) datacolumnresult[ib]); 
+        }
+        rt.show("Results"); 
         } else {
             RoiManager rmA = new RoiManager(true);
 
         if (rmA == null) {
             rmA = new RoiManager();
         } 
-            ImagePlus imp = Remove_Background(impR);
-            ImageStatistics stats = ImageStatistics.getStatistics(imp.getProcessor(), ImageStatistics.MIN_MAX, null);
-            IJ.log("max of raw image" + Double.toString(stats.max));
-            String StartStack = imp.getTitle();
-            imp.show();
 
-            int StackSize = imp.getNSlices() * imp.getNFrames();
-            System.out.println("Nslices" + StackSize);
-            ImagePlus impc = IJ.createImage("Collage", "16-bit black", impR.getWidth(), impR.getHeight(), StackSize);
-            rmA.runCommand("reset");
-            IJ.run("Colors...", "foreground=white background=black selection=blue");
-
+            int ia;
             int j;
             int k;
             int border = 5;
-            int Minsize = 5;
+            int Minsize = 8;
             String Minsizes;
             int Maxsize = 100000;
             String Maxsizes;
@@ -170,18 +182,25 @@ public class Variable_Threshold16bitImages implements PlugIn {
             float MaxCirc = (float) 1.0;
             String MaxCircs = Float.toString(MaxCirc);
             int FinalDilateErodeSteps = 0;
-            int InitialDilateErodeSteps = 1;
-            int ThreshStart = 500;
+            int InitialDilateErodeSteps = 2;
+            int ThreshStart = 575;
+            int LowestValDark=ThreshStart;
+            int LightPixThreshold=650;
 //            int ThreshStart = 8;
             int ThreshDelta = 0;
-            int nThresholds = 20;
+            int nThresholds = 35;
  //           int nThresholds = 20;
-            float MaxGray2ThreshFactor = (float) 0.5;
+            float MaxGray2ThreshFactor = (float) 0.45;
             String MaxGray2ThreshFactors = Float.toString(MaxGray2ThreshFactor);
             float ThreshReset;
-            float ThreshResetMax = 35000;
+            float ThreshResetMax = 1800;
             String ThreshResetMaxs = Float.toString(ThreshResetMax);
+            boolean DarkPixelsOnly = false;
+            boolean Fluorescence =false;
             boolean DoHull = true;
+            boolean DoFrag = true;
+            boolean RemoveEdgeParticles = false;
+            boolean removeallfragments = false;            
             boolean areaboolean = true;
             boolean[] ROI_BinEmptyArray = new boolean[nThresholds];
             int[] SelectArray;
@@ -193,7 +212,9 @@ public class Variable_Threshold16bitImages implements PlugIn {
             String HullMask = "HullMask";
             String ROIfname;
             GenericDialog gd = new GenericDialog("Set Parameters");
+            gd.addNumericField("Lowest Value Dark: ", LowestValDark, 0);            
             gd.addNumericField("Beginning Threshold: ", ThreshStart, 0);
+            gd.addNumericField("Fixed thresh value light pixels (for dark only pixels use checkbox below) (enter 1 for fluorescent-bright-on-blackbackground)", LightPixThreshold,0);
             gd.addStringField("MaxGray2ThreshFactors: ", MaxGray2ThreshFactors);
             gd.addNumericField("Number of Thresholds: ", nThresholds, 0);
             gd.addStringField("Max Value for Reset Threshold: ", ThreshResetMaxs);
@@ -205,7 +226,13 @@ public class Variable_Threshold16bitImages implements PlugIn {
             gd.addNumericField("FinalDilateErodeSteps (if Do Hull not selected): ", FinalDilateErodeSteps, 0);
             gd.addNumericField("label interval for collage particles: ", labelinterval, 0);
             gd.addNumericField("max number of collage slices: ", maxcollageslices, 0);
+            gd.addCheckbox("Dark Pixels only analysis", DarkPixelsOnly);
+            gd.addCheckbox("Fluorescence particles analysis (Particles are bright)", Fluorescence);           
+            gd.addCheckbox("Remove Edge Particles ", RemoveEdgeParticles);
             gd.addCheckbox("Save Results ", SaveResults);
+            gd.addCheckbox("Canny Method ", CannyMethod);            
+            gd.addCheckbox("Do Fragment Analysis ", DoFrag);
+            gd.addCheckbox("Remove all Fragments ", removeallfragments);            
             gd.addCheckbox("Do Hull Analysis ", DoHull);
             gd.addCheckbox("Enhance Contrast collage particles ", EnhanceContrastCollage);
             gd.addCheckbox("Label collage particles ", LabelCollageParticles);
@@ -214,7 +241,9 @@ public class Variable_Threshold16bitImages implements PlugIn {
             if (gd.wasCanceled()) {
                 return;
             }
+            LowestValDark = (int) gd.getNextNumber();
             ThreshStart = (int) gd.getNextNumber();
+            LightPixThreshold= (int) gd.getNextNumber();
             MaxGray2ThreshFactor = Float.valueOf(gd.getNextString());
             nThresholds = (int) gd.getNextNumber();
             ThreshResetMaxs = gd.getNextString();
@@ -226,7 +255,13 @@ public class Variable_Threshold16bitImages implements PlugIn {
             FinalDilateErodeSteps = (int) gd.getNextNumber();
             labelinterval = (int) gd.getNextNumber();
             maxcollageslices = (int) gd.getNextNumber();
+            DarkPixelsOnly = (boolean) gd.getNextBoolean();  if (DarkPixelsOnly) LightPixThreshold=70000;
+            Fluorescence = (boolean) gd.getNextBoolean();  if (Fluorescence) LightPixThreshold=1; 
+            RemoveEdgeParticles = (boolean) gd.getNextBoolean();        
             SaveResults = (boolean) gd.getNextBoolean();
+            CannyMethod = (boolean) gd.getNextBoolean();            
+            DoFrag = (boolean) gd.getNextBoolean();
+            removeallfragments = (boolean) gd.getNextBoolean();            
             DoHull = (boolean) gd.getNextBoolean();
             EnhanceContrastCollage = (boolean) gd.getNextBoolean();
             LabelCollageParticles = (boolean) gd.getNextBoolean();
@@ -234,6 +269,20 @@ public class Variable_Threshold16bitImages implements PlugIn {
             Minsizes = Integer.toString(Minsize);
             Maxsizes = Integer.toString(Maxsize);
             ThreshResetMax = Float.valueOf(ThreshResetMaxs);
+            
+            ImagePlus imp = Remove_Background(impR,LowestValDark,LightPixThreshold);
+//            ImagePlus imp = impR;
+            ImageStatistics stats = ImageStatistics.getStatistics(imp.getProcessor(), ImageStatistics.MIN_MAX, null);
+            IJ.log("max of raw image" + Double.toString(stats.max));
+            String StartStack = imp.getTitle();
+            imp.show();
+
+            int StackSize = imp.getNSlices() * imp.getNFrames();
+            System.out.println("Nslices" + StackSize);
+            ImagePlus impc = IJ.createImage("Collage", "16-bit black", impR.getWidth(), impR.getHeight(), StackSize);
+            rmA.runCommand("reset");
+            IJ.run("Colors...", "foreground=white background=black selection=blue");           
+            
                         if (EnhanceContrastCollage) {
                 IJ.run(impr2, "Enhance Contrast", "saturated=0.20");
                 IJ.run(impr2, "Apply LUT", "stack");
@@ -246,21 +295,30 @@ public class Variable_Threshold16bitImages implements PlugIn {
 
             if (SaveResults) {
                MeasCommand=DefineMeasurements(measurements); 
-            }       
+            } 
+            IJ.log("CannyMethod " + Boolean.toString(CannyMethod));
             IJ.log("MaxGray2ThreshFactor " + Float.toString(MaxGray2ThreshFactor));
+            IJ.log("LowestValDark " + Integer.toString(LowestValDark));
             IJ.log("ThreshStart " + Integer.toString(ThreshStart));
+            IJ.log("LightPixThreshold " + Integer.toString(LightPixThreshold));
             IJ.log("nThresholds " + Integer.toString(nThresholds));
+            IJ.log("ThreshResetMax " + ThreshResetMaxs);
             IJ.log("InitialDilateErodeSteps " + Integer.toString(InitialDilateErodeSteps));
             IJ.log("FinalDilateErodeSteps " + Integer.toString(FinalDilateErodeSteps));
             IJ.log("MinSize " + Integer.toString(Minsize));
+            IJ.log("MaxSize " + Integer.toString(Maxsize));
             IJ.log("Min Circularity " + MinCircs);
             IJ.log("Max Circularity " + MaxCircs);
+            IJ.log("Remove Edge Particles " + Boolean.toString(RemoveEdgeParticles));                    
+            IJ.log("FragmentAnalysis " + Boolean.toString(DoFrag));
+            IJ.log("remove all fragments " + Boolean.toString(removeallfragments));            
             IJ.log("HullAnalysis " + Boolean.toString(DoHull));
             rmA.runCommand("reset");
             ImagePlus imp2 = new Duplicator().run(imp);
-            IJ.setThreshold(imp2, ThreshStart, 65535);
+            IJ.setThreshold(imp2, LowestValDark-10, 65535);
             Prefs.blackBackground = false;
             IJ.run(imp2, "Make Binary", "method=Default background=Default");
+
             for (i = 0; i < InitialDilateErodeSteps; i++) {
                 IJ.run(imp2, "Dilate", "stack");
             }
@@ -269,6 +327,8 @@ public class Variable_Threshold16bitImages implements PlugIn {
                 IJ.run(imp2, "Erode", "stack");
             }
             //       draws line around image so that edge particles will be excluded
+            if (RemoveEdgeParticles)
+                    {
             IJ.run("Colors...", "foreground=black background=black selection=blue");
             IJ.run(imp2, "Line Width...", "line=2");
             imp2.setRoi(new Line(0, 0, framew - 1, 0));
@@ -282,15 +342,14 @@ public class Variable_Threshold16bitImages implements PlugIn {
             IJ.run(imp2, "Draw", "stack");
             imp2.setRoi(new Line(0, frameh - 1, 0, 0));
             IJ.run(imp2, "Fill", "stack");
-            IJ.run(imp2, "Draw", "stack");
+            IJ.run(imp2, "Draw", "stack");}
             IJ.run("Colors...", "foreground=white background=black selection=blue");
             IJ.run("Set Measurements...", "area min center  stack redirect=" + StartStack + " decimal=3");
             if (nThresholds == 1) /*& (!DoHull)) */{
                 IJ.run("Set Measurements...", MeasCommand + " redirect=" + RawStack + " decimal=3");
-                DoHull=false;
+//                DoHull=false;
             }
 
-//             ParticleAnalyzer.setRoiManager(rmA);
              if (nThresholds > 1){
              ParticleAnalyzer.setRoiManager(rmA);}
             IJ.run(imp2, "Analyze Particles...", "size=" + Minsizes + "-" + Maxsizes +/*Infinity"+*/ " pixel " + " circularity=" + MinCircs + "-" + MaxCircs + " display exclude clear add stack");
@@ -301,33 +360,27 @@ public class Variable_Threshold16bitImages implements PlugIn {
             nROIs = rmA.getCount();
             IJ.log("Initial #nROIs " + Integer.toString(nROIs));
 
+
             float[] MaxGrayArray = new float[nROIs];
             int[] MaxGrayArrayIndex = new int[nROIs];
-            int[] Bx1 = new int[nROIs];
-            int[] By1 = new int[nROIs];
-            int[] Bw1 = new int[nROIs];
-            int[] Bh1 = new int[nROIs];
+
             int[] Bz1 = new int[nROIs];
             rt = ResultsTable.getResultsTable();
             if (nThresholds > 1) {
             MaxGrayArray = rt.getColumn(5);
-
             float MaxGraymax; 
             MaxGraymax = MaxGrayArray[0];
 
             float MaxGraymin = 1000;
             float MaxGrayupper = 150;
+            Polygon fooc;
             Roi roi2;
-            Rectangle r2;
+            Rectangle r2 = null;
             ij.WindowManager.setTempCurrentImage(imp2);
             for (i = 0; i <= nROIs - 1; i++) {
                 rmA.select(i);
                 roi2 = imp2.getRoi();
-                r2 = roi2.getBounds();
-                Bx1[i] = r2.x;
-                By1[i] = r2.y;
-                Bw1[i] = r2.width;
-                Bh1[i] = r2.height;
+
                 Bz1[i] = roi2.getPosition();
 
                 if (MaxGrayArray[i] > MaxGraymax) {
@@ -337,17 +390,27 @@ public class Variable_Threshold16bitImages implements PlugIn {
                     MaxGraymin = MaxGrayArray[i];
                 }
             }
+            MaxGraymax=MaxGraymax+10;
             IJ.log("MaxGraymax " + Float.toString(MaxGraymax));
             IJ.log("MaxGraymin " + Float.toString(MaxGraymin));
 
 
-                float deltaMaxGray = (MaxGraymax - MaxGraymin) / nThresholds + (float) 0.01;
+//                float deltaMaxGray = (MaxGraymax - MaxGraymin) / nThresholds + (float) 0.01;
+//                float deltaMaxGray = (ThreshResetMax/MaxGray2ThreshFactor - MaxGraymin) / nThresholds + (float) 0.01;
+                float deltaMaxGray = (ThreshResetMax/MaxGray2ThreshFactor - ThreshStart/MaxGray2ThreshFactor) / nThresholds + (float) 0.01;
+
                 int jsum = 0;
+                int dilate_extra=1;
+                float MaxGrayLo = MaxGraymin- deltaMaxGray;
+                float MaxGrayHi = 0;
                 for (k = 0; k < nThresholds; k++) {
                     IJ.log("working on kth threshold " + Integer.toString(k));
                     j = 0;
-                    float MaxGrayLo = MaxGraymin + deltaMaxGray * (k);
-                    float MaxGrayHi = MaxGrayLo + deltaMaxGray;
+//                    float MaxGrayLo = MaxGraymin + deltaMaxGray * (k);
+                     MaxGrayLo = MaxGrayLo + deltaMaxGray;
+                     if(k>0) MaxGrayLo=MaxGrayHi;
+                    MaxGrayHi = MaxGrayLo + deltaMaxGray;
+                    if (k==0) MaxGrayHi=ThreshStart/MaxGray2ThreshFactor + deltaMaxGray;
                     if (k == nThresholds - 1) {
                         MaxGrayHi = MaxGraymax;
                     }
@@ -369,65 +432,154 @@ public class Variable_Threshold16bitImages implements PlugIn {
                         rmA.runCommand("Fill");
                         ImagePlus impt = ic.run("And create stack", imp, impn);
 
+                        
                         IJ.log("Number of ROIs in MaxGray Dev Bin " + Integer.toString(j));
                         impn.close();
 //               Set Threshold for this batch of ROIs
                         ThreshReset = Math.max(ThreshStart, MaxGray2ThreshFactor * MaxGrayLo);
+//                        ThreshReset =  MaxGray2ThreshFactor * MaxGrayLo;                        
                         if (ThreshReset > ThreshResetMax) {
                             ThreshReset = ThreshResetMax;
                         }
-                        IJ.log("ThreshReset: " + Float.toString(ThreshReset));
-                        IJ.setThreshold(impt, ThreshReset, 65535);
+                        if (CannyMethod)
+                        {
+                         ImageStack ist=impt.getStack();
+                         ImagePlus impca = new ImagePlus();
+                         ImageStack impcb = new ImageStack();
+                         for (ia = 1; ia <=StackSize; ia++) {
+                         ImageProcessor ipt = ist.getProcessor(ia); 
+                         impca.setProcessor(ipt);
+                         stats = impca.getStatistics();
+//                         IJ.log("Max: "+stats.max);
+                         IJ.run(impca, "Multiply...", "value="+Float.toString((float)32000.0/(float)stats.max));
+                         IJ.run(impca, "Canny Edge Detector", "gaussian=1.5 low=2.5 high=7.5");
+                         Prefs.blackBackground = false;
+                         IJ.run(impca, "Dilate", "");
+                         IJ.run(impca, "Fill Holes", "");
+                         IJ.run(impca, "Erode", "");                                                
+                         ipt =impca.getProcessor();
+                         impcb.addSlice(ipt);                        
+                         }
+                         impt = new ImagePlus("AA", impcb); 
+                        }
+                        else
+                        {                                              
+                        IJ.log("ThreshReset: " + Float.toString(ThreshReset));                     
+                        IJ.setThreshold(impt, ThreshReset, 65535);                        
                         IJ.run(impt, "Make Binary", "method=Default background=Default");
-//                OR this mask with building-up mask from previous iterations               
+//comment the below line for fluorescent imaged particles
+                        dilate_extra=(int) ThreshReset*0/(2*ThreshStart);
+//below line for fluorescent imaged particles                        
+if (Fluorescence) dilate_extra=(int) (ThreshReset*1./(3*ThreshStart)); if (dilate_extra<1)dilate_extra=1;
+                        for (i = 0; i < InitialDilateErodeSteps; i++) {
+                         IJ.run(impt, "Dilate", "stack");
+                         }
+                        IJ.run(impt, "Fill Holes", "stack");
+                        for (i = 0; i < InitialDilateErodeSteps; i++) {
+                            IJ.run(impt, "Erode", "stack");
+                            }               
+                        }
+                RoiManager rmC = new RoiManager(true);
+                                IJ.run("Set Measurements...", "area min center stack redirect=" + StartStack + " decimal=3");
+                                 ParticleAnalyzer.setRoiManager(rmC);
+            IJ.run(impt, "Analyze Particles...", "size=" + Minsizes + "-" + Maxsizes +/*Infinity"+*/ " pixel " + " circularity=" + MinCircs + "-" + MaxCircs + " display exclude clear add stack");
+//            IJ.run(impcc, "Analyze Particles...", "size=" + Minsizes + "-" + Maxsizes +/*Infinity"+*/ " pixel " + " circularity=" + MinCircs + "-" + MaxCircs + " display exclude clear add stack");
+//                IJ.run(impt, "Analyze Particles...", "size=" + "1" + "-Infinity pixel circularity=" + ".0" + "-1.00 display exclude clear add stack");
+//below lines for fluorescent imaged particles
+if (Fluorescence){
+                        for (i = 0; i < InitialDilateErodeSteps+0+dilate_extra; i++) {
+                         IJ.run(impt, "Dilate", "stack");
+                         }
+                 }
+
+            IJ.log(Integer.toString(rmC.getCount()));
+            rmC.close();
+
+//                OR this mask with building-up mask from previous iterations 
+
+
                         impf = ic.run("Or create stack", impf, impt);
+//                        impf = ic.run("Or create stack", impf, impcc);
+                 
                         impt.close();
+//                        impcc.close();
+
+
                         System.gc();
                     }
                 }
+//                imp2.show();impf.show();
+//int fooz=6/0;
                 IJ.run(impf, "Invert LUT", "");
-//for (i = 0; i <FinalDilateErodeSteps; i++) {IJ.run(impf, "Dilate", "stack");}
+for (i = 0; i <FinalDilateErodeSteps; i++) {IJ.run(impf, "Dilate", "stack");}
                 IJ.run(impf, "Fill Holes", "stack");
-//for (i = 0; i <FinalDilateErodeSteps; i++) {IJ.run(impf, "Erode", "stack");}
+for (i = 0; i <FinalDilateErodeSteps; i++) {IJ.run(impf, "Erode", "stack");}
                 ij.WindowManager.setTempCurrentImage(impf);
-                rmA.runCommand("Deselect");
-                rmA.runCommand("Delete");
+ /*               rmA.runCommand("Deselect");
+                rmA.runCommand("Delete");*/
+                RoiManager rmB = new RoiManager(true);
                 IJ.run("Set Measurements...", "area min center stack redirect=" + StartStack + " decimal=3");
-                 ParticleAnalyzer.setRoiManager(rmA);
+                 ParticleAnalyzer.setRoiManager(rmB);
                 IJ.run(impf, "Analyze Particles...", "size=" + "1" + "-Infinity pixel circularity=" + ".0" + "-1.00 display exclude clear add stack");
-                nROIs2 = rmA.getCount();
+//            IJ.run(impf, "Analyze Particles...", "size=" + Minsizes + "-" + Maxsizes +/*Infinity"+*/ " pixel " + " circularity=" + MinCircs + "-" + MaxCircs + " display exclude clear add stack");
+
+                nROIs2 = rmB.getCount();
                 int[] Bx2 = new int[nROIs2];
                 int[] By2 = new int[nROIs2];
-                int[] Bw2 = new int[nROIs2];
-                int[] Bh2 = new int[nROIs2];
                 int[] Bz2 = new int[nROIs2];
                 int[] Bzframerange2 =new int[StackSize];
+                int Bx;
+                int By;
                 Roi roi3;
                 Polygon foo;
                 IJ.log("#ROIS after Thresholding " + Integer.toString(nROIs2));
                 j=0;
                 Bzframerange2[0]=0;
-                    rmA.select(0);
+
+                for (i = 0; i <= nROIs2 - 1; i++) {
+                    rmB.select(i);
                     roi3 = impf.getRoi();
                     foo = roi3.getPolygon();
-                    Bx2[0] = foo.xpoints[1];
-                    By2[0] = foo.ypoints[1];
-                    Bz2[0] = roi3.getPosition();
-                for (i = 1; i <= nROIs2 - 1; i++) {
-                    rmA.select(i);
-                    roi3 = impf.getRoi();
-                    foo = roi3.getPolygon();
-                    Bx2[i] = foo.xpoints[1];
-                    By2[i] = foo.ypoints[1];
+                    r2=roi3.getBounds();
+                    Bx = r2.x+r2.width/2;
+                    By = r2.y+r2.height/2; 
+                    while (!(foo.contains(Bx, By))&&(Bx<=r2.x+r2.width))
+                    {Bx=Bx+1;By=By+1;}
+                    if (Bx>r2.x+r2.width)
+                       {
+                        Bx = r2.x;
+                        By = r2.y; 
+                           while (!(foo.contains(Bx, By))&&(Bx<=r2.x+r2.width))
+                               { Bx=Bx+1;  
+                               while (!(foo.contains(Bx, By))&&(By<=r2.y+r2.height))
+                               {By=By+1;}
+                               }
+                               }
+                           
+                           if ((Bx>r2.x+r2.width)&&(By>r2.y+r2.height))
+                                   {IJ.log("not found"+Integer.toString(Bx)+" "+Integer.toString(By));}
+                    
+                    
+                    
+                    Bx2[i] = Bx;
+                    By2[i] = By;
+                    if (!(foo.contains(Bx2[i], By2[i]))) {IJ.log("not contained");}
+//                    else {IJ.log(" contained");}
                     Bz2[i] = roi3.getPosition();
-                    if (Bz2[i]>Bz2[i-1]) 
-                    {j=j+1;Bzframerange2[j]=i;} //finding values of i at which frame changes, will only look for fragments in the same frame
+                    if(i>0)
+                    {if (Bz2[i]>Bz2[i-1]) 
+                    {j=j+1;Bzframerange2[j]=i;}} //finding values of i at which frame changes, will only look for fragments in the same frame
                 }
                 if (j+1<StackSize) Bzframerange2[j+1]=nROIs2-1;
 
 // Examine each original ROI bounds to see if there are now fragments in there
+
                 ImageProcessor ipf = impf.getProcessor();
-                ipf.setColor(Color.black);
+                if (removeallfragments){ipf.setColor(Color.white);}
+                else{ipf.setColor(Color.black);}
+                
+//                impf.show();
+//                int fooh=6/0;
                 int frameval = 0;
                 int newjmin = 0;
                 int jmin=0;
@@ -438,18 +590,28 @@ public class Variable_Threshold16bitImages implements PlugIn {
                 int ybegin = 0;
                 int xend;
                 int yend;
-
+        if (DoFrag) 
+        {
                 for (i = 0; i <= nROIs - 1; i++) {
+//                    rmA.get(i);rmA.
+                    roi2 = rmA.getRoi(i);
+
+
                     fragtotal = fragtotal + fragcount - 1;
                     fragcount = 0;
                     if (i>1) {if (Bz1[i]>Bz1[i-1]) frameval++;}
                     jmin=Bzframerange2[frameval];
                     if (frameval==StackSize-1) {jmax=nROIs2-1;}
                     else {jmax=Bzframerange2[frameval+1];}
+
                     jloop:
                     for (j = jmin; j <= jmax; j++) {
-                        if ((Bx2[j] >= Bx1[i] && By2[j] >= By1[i] && (Bz2[j] == Bz1[i])) &&
-                             (Bx2[j] <= Bx1[i] + Bw1[i] && By2[j] <= By1[i] + Bh1[i])) {
+                        if (
+                                roi2.contains(Bx2[j], By2[j])
+//                                (Bx2[j] >= Bx1[i] && By2[j] >= By1[i] && (Bz2[j] == Bz1[i])) &&
+//                           (Bx2[j] <= Bx1[i] + Bw1[i] && By2[j] <= By1[i] + Bh1[i])
+                                ) {
+//                     IJ.log("A" + Integer.toString(Bx)+" "+Integer.toString(By) + Integer.toString(Bx2[j])+" "+Integer.toString(By2[j]));                           
                                 //inside the ith box of original ROI
                                 if (fragcount == 0) {
                                     //first found particle in the ith box of original ROI
@@ -464,19 +626,28 @@ public class Variable_Threshold16bitImages implements PlugIn {
                                     if (fragcount == 1) {
                                         fragcount++;
                                     }
-                                    impf.setPosition(Bz2[j]);
+                                    if (removeallfragments){ipf.fill(roi2);}
+                                    else
+                                    {impf.setPosition(Bz2[j]);
                                     ipf.setLineWidth(3);
                                     ipf.drawLine(xbegin, ybegin, xend, yend);
+//                                    IJ.log("drawline"+Integer.toString(xbegin)+ " "+Integer.toString(ybegin)+ " "+Integer.toString(xend)+ " "+Integer.toString(yend)+ " "+Integer.toString(i)+ " ");
+                                  
                                     ybegin = yend;
                                     xbegin = xend;
+
+                                    
+                                    }
                                 }
                             } 
 
                         
-                    }
-//                    jmin = newjmin; //next time look for particles beyond the ones already found
+                    }                                     
                 }
+//                    jmin = newjmin; //next time look for particles beyond the ones already found
                 IJ.log("Fragmented Particles Total " + Integer.toString(fragtotal));
+        }
+
                 IJ.setAutoThreshold(impf, "Default");
                 Prefs.blackBackground = false;
                 IJ.run(impf, "Convert to Mask", "method=Default background=Light");
@@ -490,6 +661,8 @@ public class Variable_Threshold16bitImages implements PlugIn {
                     }
                 }
                 IJ.run("Set Measurements...", MeasCommand + " redirect=" + StartStack + " decimal=3");
+                rmB.reset();
+                rmB.close();
                 rmA.reset();
                 rmA.close();
                         RoiManager rm = RoiManager.getInstance();
@@ -497,7 +670,8 @@ public class Variable_Threshold16bitImages implements PlugIn {
             rm = new RoiManager();
         }
                  ParticleAnalyzer.setRoiManager(rm);               
-                IJ.run(impf, "Analyze Particles...", "size=1-Infinity pixel circularity=0.00-1.00 show=Nothing display exclude clear add stack");
+//                IJ.run(impf, "Analyze Particles...", "size=1-Infinity pixel circularity=0.00-1.00 show=Nothing display exclude clear add stack");
+  IJ.run(impf, "Analyze Particles...","size=" + Minsizes + "-" + Maxsizes +/*Infinity"+*/ " pixel " + " circularity=" + MinCircs + "-" + MaxCircs +" show=Nothing display exclude clear add stack");            
             }
                                     RoiManager rm = RoiManager.getInstance();
         if (rm == null) {
@@ -546,10 +720,13 @@ public class Variable_Threshold16bitImages implements PlugIn {
                 IJ.log("Hull Loop Duration " + Long.toString((System.currentTimeMillis() - startTime) / 1000));
                 rm.runCommand("Deselect");
                 rm.runCommand("Deselect");
-                impf.changes = false;  impf.close();
+                impf.changes = false;
+                impf.show();
+//                impf.close();
                 IJ.run("Colors...", "foreground=black background=black selection=blue");
                 ij.WindowManager.setTempCurrentImage(impg);
                 rm.runCommand("Fill");
+                //remove commented lines below to include AND operation with original detected areas and Hull areas
                 IJ.run(impg, "Invert", "stack");
                 ij.WindowManager.setTempCurrentImage(imp2);
                 rm.runCommand("Show All");
@@ -559,8 +736,9 @@ public class Variable_Threshold16bitImages implements PlugIn {
                 IJ.run(impg, "Invert LUT", "");
                 rt.update(measurements, impg, null);
                 IJ.run("Set Measurements...", MeasCommand + " redirect=" + RawStack + " decimal=3");
-                IJ.run(impg, "Analyze Particles...", "size=" + "1" + "-Infinity pixel circularity=" + "0.0" + "-1.00 display exclude clear add stack");                          
-                nROIs3 = rm.getCount();
+//                IJ.run(impg, "Analyze Particles...", "size=" + "1" + "-Infinity pixel circularity=" + "0.0" + "-1.00 display exclude clear add stack");                          
+                IJ.run(impg, "Analyze Particles...","size=" + Minsizes + "-" + Maxsizes +/*Infinity"+*/ " pixel " + " circularity=" + MinCircs + "-" + MaxCircs +" show=Nothing display exclude clear add stack");            
+nROIs3 = rm.getCount();
                 IJ.log("#ROIs after Convex Hull " + Integer.toString(nROIs3));
             }
 //******
@@ -575,13 +753,35 @@ public class Variable_Threshold16bitImages implements PlugIn {
 
             IJ.run(impg, "Macro...", "code=[if (v>=10 && v<=400) v=65535 ] stack");
             ImagePlus impt = ic.run("And create stack", impr2, impg);
-//            impr2.show();impf.show();nROIs3=6/0;
+
 
   if (ShowParticlesInImageStack) {
       IJ.run(impt, "Properties...", "channels=1 slices=1 frames="+StackSize+" unit=pixel pixel_width=1.0000 pixel_height=1.0000 voxel_depth=1.0000 frame=[1 sec]");
-      impt.show();
+      impt.show(); 
+//      impf.show();
 //                      IJ.saveAs(impt, "Tiff", path+name  + "C.tif");
   }
+              float [][] data_array =GetResultsArray(rt);
+              String[] headerArrayB=GetResultsHeaderArray(rt);
+                          float [] datacolumn1=GetColumnArray("Perim.",rt);
+            float [] datacolumn2=GetColumnArray("Area",rt);
+            int rtlen=rt.getCounter();
+            float [] datacolumnresult=new float[rtlen];
+//            for (i=0;i<rtlen;i++) datacolumnresult[i]=(float) (datacolumn1[i]/Math.sqrt(datacolumn2[i]));
+//            for (i=0;i<rtlen;i++) datacolumnresult[i]=(float) (datacolumn1[i]/Math.sqrt(datacolumn2[i]));
+            for (i=0;i<rtlen;i++) datacolumnresult[i]=(float)(0.238*2*Math.sqrt(datacolumn2[i]/3.1416));            
+            rt.reset();
+            int ib;
+            for (ib=0; ib<rtlen; ib++)         {
+//            IJ.log(Integer.toString(ib)+" "+headerArrayB[0]+" "+Float.toString(data_arrayB[1][ib]));
+            rt.incrementCounter();
+            rt.addValue("Particle", ib);
+for (i=1;i<headerArrayB.length;i++) rt.addValue(headerArrayB[i], (double) data_array[i][ib]); 
+ 
+//rt.addValue("Perim._Area", (double) datacolumnresult[ib]); 
+rt.addValue("Diam", (double) datacolumnresult[ib]); 
+        }
+        rt.show("Results"); 
 //Save Results Table as xls file 
             if (SaveResults) {
                 String roiname;
@@ -613,7 +813,8 @@ impg.close();
             morefilter = !(DoFilter.wasCanceled());
         }
         while (morefilter) {
-//            ImagePlus impfil = Make_Filtered_Collage(impr2, rt, fname, LabelCollageParticles, labelinterval, SaveResults);
+
+
             ImagePlus impfil = Make_Filtered_Collage(impr2, rt, fname, LabelCollageParticles, labelinterval,maxcollageslices, SaveResults);            
             impfil.show();
             GenericDialog DoFilter2 = new GenericDialog("Do Filter?");
@@ -735,38 +936,64 @@ systemMeasurements = measurements;
 Prefs.savePreferences();
         return MeasCommand;
     }
-    public static ImagePlus Remove_Background(ImagePlus imp) {
+        public static String [] GetResultsHeaderArray(ResultsTable rt){ 
+            String headerarray[] =rt.getColumnHeadings().split("\t");
+            return headerarray;   
+    }    
+    public static float [][] GetResultsArray(ResultsTable rt){
+            String headerarray[]=GetResultsHeaderArray(rt);
+            int columnstotal = headerarray.length;
+            int i;
+            float[][] data_array =new float[columnstotal][rt.getCounter()];
+            for (i=1;i<columnstotal;i++)
+            {data_array[i]=rt.getColumn(rt.getColumnIndex(headerarray[i]));
+                    rt.getColumn(i);}
+            return data_array;   
+    }
+        public static float [] GetColumnArray(String ColumnName,ResultsTable rt){
+            float[] data_array =new float[rt.getCounter()];
+            data_array=rt.getColumn(rt.getColumnIndex(ColumnName));                 
+            return data_array;   
+    }
+    public static ImagePlus Remove_Background(ImagePlus imp, int LowestValDark, int LightPixThreshold) {
         int MedianStartSlice = 1;
-//        int MedianEndSlice = 400;
         int MedianEndSlice = 30;
-        double ScaleFactorLightPix = 0.0;
-        String ScaleFactorLightPixSt = Double.toString(ScaleFactorLightPix);
+
+
+        String LightPixThresholdSt = Integer.toString(LightPixThreshold); 
+        String LowestValDarkSt = Integer.toString(LowestValDark); 
         ImageCalculator ic = new ImageCalculator();
         MedianEndSlice = Math.min(MedianEndSlice, imp.getNSlices());
         GenericDialog gdBackgnd = new GenericDialog("Background Subtraction");
         gdBackgnd.addNumericField("Calc MedianStartSlice: ", MedianStartSlice, 0);
-        gdBackgnd.addNumericField("Calc MedianEndSlice: ", MedianEndSlice, 0);
-        gdBackgnd.addStringField("Calc ScaleFactorLightPix: ", ScaleFactorLightPixSt);
+        gdBackgnd.addNumericField("Calc MedianEndSlice: enter 0 for fluor processing", MedianEndSlice, 0);         
         gdBackgnd.showDialog();
         MedianStartSlice = (int) gdBackgnd.getNextNumber();
-        MedianEndSlice = (int) gdBackgnd.getNextNumber();
-        ScaleFactorLightPixSt = gdBackgnd.getNextString();
-        ScaleFactorLightPix = Double.valueOf(ScaleFactorLightPixSt);
+        MedianEndSlice = (int) gdBackgnd.getNextNumber();       
         ZProjector ZP = new ZProjector(imp);
         ZP.setMethod(ZP.MEDIAN_METHOD);
         ZP.setStartSlice(MedianStartSlice);
         ZP.setStopSlice(MedianEndSlice);
         ZP.doProjection();
         ImagePlus impm = ZP.getProjection();
- /*       impm.show();
-        int food=5/0;*/
+ if (MedianStartSlice>MedianEndSlice)  IJ.run(impm, "Multiply...", "value=0 stack");
+/*        impm.show();
+        int food=5/0;        
+        */
         ImagePlus impP = ic.run("Subtract create stack", imp, impm);
         ImagePlus impD = ic.run("Difference create stack", imp, impm);
         ImagePlus impN = ic.run("Subtract create stack", impD, impP);
-        IJ.run(impP, "Multiply...", "value=" + ScaleFactorLightPixSt + " stack");
+        if (LightPixThreshold>1)
+        {
+        IJ.run(impP, "Subtract...", "value=" + LightPixThresholdSt + " stack");
+        IJ.run(impP, "Multiply...", "value=70000 stack");
+        IJ.run(impP, "Divide...", "value=65535 stack");
+        IJ.run(impP, "Multiply...", "value=" + LowestValDarkSt + " stack");}
+        else{IJ.run(impP, "Multiply...", "value=" + LightPixThresholdSt + " stack");}        
+//        impP.show(); int foocc=6/0;
         ImagePlus impsubfiles = ic.run("Add create stack", impP, impN);
         impsubfiles.setTitle("subfiles");
-        IJ.log("Calc ScaleFactorLightPix: " + ScaleFactorLightPixSt);
+
         return impsubfiles;
     }
     //Makes collage of particles
@@ -923,6 +1150,7 @@ Prefs.savePreferences();
         RoiManager roim = RoiManager.getInstance();
         int nROIs3 = roim.getCount();
         int[] RoiIndexArray = new int[nROIs3];
+         Roi [] roilist = new Roi[nROIs3];
         String headingsStr = rt.getColumnHeadings();
         IJ.log(headingsStr + Integer.toString(nROIs3));
         String[] headings = Arrays.copyOfRange(headingsStr.split("\\s+"), 1, (headingsStr.split("\\s+")).length);;
@@ -931,6 +1159,7 @@ Prefs.savePreferences();
         int[] Columns = new int[headings.length];
         int ia = 0;
         int[] ROIFilterArray;
+                int[] NegativeROIFilterArray;
         int[] deleterows = new int[nROIs3];
         boolean inrange = true;
         int fdrows = headings.length / 2;
@@ -997,13 +1226,20 @@ Prefs.savePreferences();
             int ib = 0;
             ResultsTable rtselect = (ResultsTable) rt.clone();
             rtselect.show(Filtname);
-            for (i = 0; i < nROIs3; i++) {
+             roilist=roim.getRoisAsArray(); 
+            for (i = 0; i < nROIs3; i++) {            
                 inrange = true;
                 for (k = 0; k < jj; k++) {
                     testvalue = rtselect.getValueAsDouble(Columns[SetfilterRanges[k]], i);
-                    inrange = inrange & ((testvalue > value[2 * k]) & (testvalue < value[2 * k + 1]));
+                    inrange = inrange && ((testvalue > value[2 * k]) && (testvalue < value[2 * k + 1]));
+//                    inrange = inrange && (((testvalue > value[2 * k]) && (testvalue < value[2 * k + 1]))||(testvalue > 2080) );
                 }
-                if (inrange) {
+             k=0;
+/*                    testvalue = rtselect.getValueAsDouble(Columns[SetfilterRanges[k+1]], i)/rtselect.getValueAsDouble(Columns[SetfilterRanges[k]], i);
+                    inrange = inrange && ((testvalue > value[2 * (k+1)]/value[2 * k]) && (testvalue <value[2 * (k+1) + 1]/ value[2 * k + 1]));
+                                 IJ.log(Double.toString(testvalue)+" "+Double.toString(value[2 * k])+" "+Double.toString(value[2 * k + 1])+" " +Double.toString(value[2 * (k+1)])+" "+Double.toString(value[2 * (k+1) + 1]));               
+*/
+if (inrange) {
                     RoiIndexArray[ia] = i;
                     ia++;
                 } else {
@@ -1017,6 +1253,8 @@ Prefs.savePreferences();
             rtselect.updateResults();
             rtselect.show(Filtname);
             fname = fname.substring(0, fname.length() - 4);
+            ROIFilterArray = Arrays.copyOf(RoiIndexArray, ia);
+            NegativeROIFilterArray = Arrays.copyOf(deleterows, ib);
             if (SaveResults) {
                 try {
                     rtselect.saveAs(fname + Filtname + ".xls");
@@ -1024,11 +1262,22 @@ Prefs.savePreferences();
                     Logger.getLogger(Variable_Threshold16bitImages.class.getName()).log(Level.SEVERE, null, ex);
                 }
             }
-            ROIFilterArray = Arrays.copyOf(RoiIndexArray, ia);
+            if (SaveResults)
+                 
+            {                                    
+                roim.setSelectedIndexes(NegativeROIFilterArray);
+                roim.runCommand("delete");
+                boolean error=roim.runCommand("Save", fname+Filtname + ".zip"); IJ.log("saved "+fname+Filtname + ".zip");
+                roim.runCommand("Deselect");
+                roim.runCommand("delete");
+                ij.WindowManager.setTempCurrentImage(imp);
+                for (i = 0; i < nROIs3; i++) roim.addRoi(roilist[i]);
+            }
             impfil = Make_Collage(imp, ROIFilterArray, LabelCollageParticles, labelinterval, maxcollageslices);
             impfil.setTitle("Collage" + Filtname);
             if (SaveResults) {
                 IJ.saveAs(impfil, "Tiff", fname + Filtname + "Collage.tif");
+               
             }
             impfil.show();
         }
